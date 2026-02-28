@@ -1,0 +1,19 @@
+{
+    "name": "PosLX",
+    "short_name": "POS",
+    "description": "Glassmorphism POS & Courier Tracking System",
+    "theme_color": "#0a0e1a",
+    "background_color": "#0a0e1a",
+    "display": "standalone",
+    "orientation": "any",
+    "scope": "/",
+    "start_url": "/",
+    "icons": [
+        {
+            "src": "/vite.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}
