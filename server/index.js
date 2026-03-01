@@ -14,8 +14,11 @@ import transactionsRouter from './routes/transactions.js';
 import invoicesRouter from './routes/invoices.js';
 import accountsRouter from './routes/accounts.js';
 import ordersRouter from './routes/orders.js';
+import settingsRouter from './routes/settings.js';
+import tunnelRouter from './routes/tunnel.js';
 import { setupCourierSocket } from './sockets/courierSocket.js';
 import { getDb } from './config/db.js';
+import { startTunnel, stopTunnel } from './tunnel/tunnelManager.js';
 
 dotenv.config();
 
@@ -45,6 +48,8 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/invoices', invoicesRouter);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/tunnel', tunnelRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -68,4 +73,15 @@ httpServer.listen(PORT, async () => {
     console.log(`🚀 PosLX server running on http://localhost:${PORT}`);
     // Initialize SQLite DB
     getDb();
+    // Start Cloudflare Tunnel
+    startTunnel(PORT);
 });
+
+// Graceful shutdown — stop tunnel on exit
+const gracefulShutdown = () => {
+    stopTunnel();
+    process.exit(0);
+};
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+

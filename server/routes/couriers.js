@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
 import { haversine } from '../utils/haversine.js';
+import { courierAuth } from '../middleware/courierAuth.js';
 
 const router = Router();
 
@@ -38,8 +39,8 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
-// PUT /api/couriers/:id/location — update GPS + compute distance
-router.put('/:id/location', async (req, res) => {
+// PUT /api/couriers/:id/location — update GPS + compute distance (requires courier API token)
+router.put('/:id/location', courierAuth, async (req, res) => {
     try {
         const { lat, lng } = req.body;
         const db = getDb();

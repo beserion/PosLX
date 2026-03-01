@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -239,6 +240,11 @@ function initSchema(db) {
 
     CREATE INDEX IF NOT EXISTS IX_PurchaseOrders_Status
       ON PurchaseOrders(Status);
+
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // ── Safe ALTER TABLE for existing DBs that lack new columns ──
@@ -269,15 +275,18 @@ function initSchema(db) {
 
   const catCount = db.prepare('SELECT COUNT(*) AS cnt FROM Categories').get();
   if (catCount.cnt === 0) {
+    /* Test için yoruma alındı
     const insertCat = db.prepare('INSERT INTO Categories (Name) VALUES (?)');
     const seedCats = db.transaction((names) => {
       for (const n of names) insertCat.run(n);
     });
     seedCats(['Hot Drinks', 'Cold Drinks', 'Desserts', 'Pastry', 'Food']);
+    */
   }
 
   const prodCount = db.prepare('SELECT COUNT(*) AS cnt FROM Products').get();
   if (prodCount.cnt === 0) {
+    /* Test için yoruma alındı
     const insertProd = db.prepare(
       'INSERT INTO Products (Name, Stock, CostPrice, SalePrice, Category) VALUES (?, ?, ?, ?, ?)'
     );
@@ -320,10 +329,12 @@ function initSchema(db) {
       for (const b of barcodes) insertBarcode.run(...b);
     });
     seedProducts();
+    */
   }
 
   const courierCount = db.prepare('SELECT COUNT(*) AS cnt FROM Couriers').get();
   if (courierCount.cnt === 0) {
+    /* Test için yoruma alındı
     const insertCourier = db.prepare(
       'INSERT INTO Couriers (Name, Phone, Status, Lat, Lng, DailyDistanceKM) VALUES (?, ?, ?, ?, ?, ?)'
     );
@@ -338,6 +349,15 @@ function initSchema(db) {
       for (const c of couriers) insertCourier.run(...c);
     });
     seedCouriers();
+    */
+  }
+
+  // Seed courier_api_token if not present
+  const tokenRow = db.prepare("SELECT value FROM system_settings WHERE key = 'courier_api_token'").get();
+  if (!tokenRow) {
+    const token = crypto.randomUUID();
+    db.prepare("INSERT INTO system_settings (key, value) VALUES ('courier_api_token', ?)").run(token);
+    console.log(`🔑 Generated courier API token: ${token}`);
   }
 }
 

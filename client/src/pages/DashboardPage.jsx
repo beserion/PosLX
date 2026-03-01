@@ -2,6 +2,7 @@ import RevenueCard from '../components/dashboard/RevenueCard';
 import StockAlert from '../components/dashboard/StockAlert';
 import CourierPerformance from '../components/dashboard/CourierPerformance';
 import DateRangeFilter from '../components/dashboard/DateRangeFilter';
+import TunnelStatusPanel from '../components/dashboard/TunnelStatusPanel';
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates';
 import { useDashboardStore } from '../store/dashboardStore';
 import { Clock, Wifi, WifiOff } from 'lucide-react';
@@ -46,6 +47,10 @@ export default function DashboardPage() {
                 <StockAlert />
                 <CourierPerformance />
             </div>
+
+            {/* Tunnel Connectivity */}
+            <TunnelStatusPanel />
         </div>
     );
 }
+
