@@ -25,6 +25,12 @@ body {
   color: var(--color-text-primary);
   min-height: 100vh;
   overflow-x: hidden;
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--color-surface-card);
+  color: var(--color-text-primary);
 }
 
 /* ── Background Gradient ─────────────────────── */
