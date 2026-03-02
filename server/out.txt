@@ -1,0 +1,226 @@
+🚀 PosLX server running on http://localhost:3001
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+🔌 Sales socket connected: 3GiQ9fAYlC8cEtt-AAAB
+🔌 Courier socket connected: v2NGsCYAspzA-mS8AAAC
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+🔌 Sales socket disconnected: 3GiQ9fAYlC8cEtt-AAAB
+🔌 Courier socket disconnected: v2NGsCYAspzA-mS8AAAC
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+--- DB CONFIG ---
+{
+  "server": "Oryx3",
+  "database": "PosLX",
+  "options": {
+    "encrypt": false,
+    "trustServerCertificate": false
+  },
+  "pool": {
+    "max": 10,
+    "min": 0,
+    "idleTimeoutMillis": 30000
+  },
+  "driver": "msnodesqlv8"
+}
+-----------------
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
+❌ MSSQL connection failed: Failed to connect to Oryx3:1433 - Could not connect (sequence)
