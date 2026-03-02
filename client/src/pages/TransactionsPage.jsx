@@ -190,7 +190,20 @@ export default function TransactionsPage() {
                                                     <span className="text-text-muted">—</span>
                                                 )}
                                             </td>
-                                            <td className="py-3 pr-3 text-text-primary">{tx.Description || '—'}</td>
+                                            <td className="py-3 pr-3 text-text-primary max-w-[200px] xl:max-w-[300px]">
+                                                {tx.Description ? (
+                                                    <div className="relative group cursor-help">
+                                                        <div className="truncate">{tx.Description.split(' | ')[0]} {tx.Description.includes(' | ') ? '...' : ''}</div>
+                                                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 w-max max-w-xs md:max-w-md p-3 bg-bg-dark border border-white/10 rounded-xl shadow-2xl z-50 text-xs text-text-muted whitespace-pre-wrap">
+                                                            {tx.Description.split(' | ').map((part, i) => (
+                                                                <span key={i} className={i === 0 ? "text-text-primary font-semibold border-b border-white/5 pb-1 mb-1" : ""}>
+                                                                    {part.trim()}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : '—'}
+                                            </td>
                                             <td className="py-3 pr-3 text-text-muted">
                                                 {tx.PaymentMethod === 'Cash' ? 'Nakit' : 'Kart'}
                                             </td>
