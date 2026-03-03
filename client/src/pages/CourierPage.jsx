@@ -1,12 +1,10 @@
-import CourierMap from '../components/courier/CourierMap';
 import CourierCard from '../components/courier/CourierCard';
 import CourierManagerModal from '../components/courier/CourierManagerModal';
 import { useCourierStore } from '../store/courierStore';
 import { useTunnelStore } from '../store/tunnelStore';
 import { useToast } from '../hooks/useToast';
-import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates';
-import { Truck, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function CourierPage() {
@@ -15,7 +13,6 @@ export default function CourierPage() {
     const fetchQrData = useTunnelStore((s) => s.fetchQrData);
     const addCourier = useCourierStore((s) => s.addCourier);
     const delivering = couriers.filter((c) => c.Status === 'Delivering').length;
-    const isMobile = useMediaQuery('(max-width: 767px)');
     const toast = useToast();
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -53,36 +50,13 @@ export default function CourierPage() {
                 </button>
             </div>
 
-            {isMobile ? (
-                /* Mobile — Full map + horizontal scroll courier cards */
-                <div className="flex flex-col flex-1 gap-3 min-h-0">
-                    <div className="flex-1 min-h-0">
-                        <CourierMap />
+            <div className="flex flex-wrap gap-4 flex-1 overflow-y-auto">
+                {couriers.map((c) => (
+                    <div key={c.ID} className="w-full sm:w-[320px]">
+                        <CourierCard courier={c} />
                     </div>
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-                        {couriers.map((c) => (
-                            <div key={c.ID} className="min-w-[260px] shrink-0">
-                                <CourierCard courier={c} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : (
-                /* Desktop — Map + sidebar cards */
-                <div className="flex gap-4 flex-1 min-h-0">
-                    <div className="flex-1 min-w-0">
-                        <CourierMap />
-                    </div>
-                    <div className="w-[320px] shrink-0 flex flex-col gap-3 overflow-y-auto">
-                        <p className="text-xs text-text-muted uppercase tracking-wider font-medium flex items-center gap-1.5">
-                            <Truck size={12} /> All Couriers ({couriers.length})
-                        </p>
-                        {couriers.map((c) => (
-                            <CourierCard key={c.ID} courier={c} />
-                        ))}
-                    </div>
-                </div>
-            )}
+                ))}
+            </div>
 
             <CourierManagerModal
                 isOpen={isAddModalOpen}

@@ -157,8 +157,7 @@ router.get('/courier-performance', async (req, res) => {
         const rows = db.prepare(`
             SELECT 
                 c.Name as name,
-                COUNT(s.ID) as orders,
-                IFNULL(c.DailyDistanceKM, 0) as km
+                COUNT(s.ID) as orders
             FROM Couriers c
             LEFT JOIN Sales s ON s.CourierID = c.ID AND date(s.CreatedAt) = date('now')
             GROUP BY c.ID

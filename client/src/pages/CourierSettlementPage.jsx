@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useCourierStore } from '../store/courierStore';
 import api from '../lib/api';
-import { Calendar, User, DollarSign, CreditCard, Banknote, Check, Calculator, LayoutTemplate } from 'lucide-react';
+import { Calendar, User, DollarSign, CreditCard, Banknote, Check, Calculator, LayoutTemplate, Clock } from 'lucide-react';
+import CourierHistoryTable from '../components/courier/CourierHistoryTable';
 
 function fmtMoney(v) {
   return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -14,6 +15,7 @@ export default function CourierSettlementPage() {
   const { couriers, fetchCouriers } = useCourierStore();
 
   const today = new Date().toISOString().slice(0, 10);
+  const [activeTab, setActiveTab] = useState('new');
   const [selectedCourier, setSelectedCourier] = useState('');
   const [date, setDate] = useState(today);
 
@@ -103,167 +105,199 @@ export default function CourierSettlementPage() {
   return (
     <div className="flex flex-col gap-6 h-full pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex justify-between items-end flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
             <LayoutTemplate size={20} className="text-cyan-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Kurye Gün Sonu</h1>
-            <p className="text-sm text-text-muted">Kurye teslimat hesaplaşması ve raporlama</p>
+            <h1 className="text-2xl font-bold text-text-primary">Kurye Sistemleri</h1>
+            <p className="text-sm text-text-muted">Kurye hesaplaşması ve raporlama yönetimi</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sol Kolon: Seçimler ve Özet */}
-        <div className="col-span-1 lg:col-span-4 flex flex-col gap-6">
-          {/* Seçimler */}
-          <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <User size={16} className="text-cyan-accent" />
-              Kurye ve Tarih Seçimi
-            </h2>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-text-muted font-medium">Kurye Seçimi</label>
-                <div className="flex items-center gap-2 glass-card-static px-3 py-2.5 rounded-xl border border-white/5 focus-within:border-cyan-500/50 transition-colors">
-                  <User size={16} className="text-text-muted" />
-                  <select
-                    value={selectedCourier}
-                    onChange={(e) => setSelectedCourier(e.target.value)}
-                    className="flex-1 text-sm text-text-primary bg-transparent outline-none cursor-pointer"
-                  >
-                    <option value="" className="bg-dark-bg text-text-muted">Kurye seçin…</option>
-                    {couriers.map((c) => (
-                      <option key={c.ID} value={c.ID} className="bg-dark-bg text-text-primary">
-                        {c.Name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-white/5 pb-px">
+        <button
+          onClick={() => setActiveTab('new')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-300 flex items-center gap-2 ${activeTab === 'new'
+              ? 'border-cyan-400 text-cyan-400'
+              : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
+            }`}
+        >
+          <Calculator size={18} />
+          Yeni Gün Sonu
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-300 flex items-center gap-2 ${activeTab === 'history'
+              ? 'border-cyan-400 text-cyan-400'
+              : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
+            }`}
+        >
+          <Clock size={18} />
+          Geçmiş Raporlar
+        </button>
+      </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-text-muted font-medium">Tarih</label>
-                <div className="flex items-center gap-2 glass-card-static px-3 py-2.5 rounded-xl border border-white/5 focus-within:border-cyan-500/50 transition-colors">
-                  <Calendar size={16} className="text-text-muted" />
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="flex-1 bg-transparent border-none outline-none text-sm text-text-primary cursor-pointer"
-                    style={{ colorScheme: 'dark' }}
-                  />
+      {activeTab === 'new' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sol Kolon: Seçimler ve Özet */}
+          <div className="col-span-1 lg:col-span-4 flex flex-col gap-6">
+            {/* Seçimler */}
+            <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
+              <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <User size={16} className="text-cyan-accent" />
+                Kurye ve Tarih Seçimi
+              </h2>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-text-muted font-medium">Kurye Seçimi</label>
+                  <div className="flex items-center gap-2 glass-card-static px-3 py-2.5 rounded-xl border border-white/5 focus-within:border-cyan-500/50 transition-colors">
+                    <User size={16} className="text-text-muted" />
+                    <select
+                      value={selectedCourier}
+                      onChange={(e) => setSelectedCourier(e.target.value)}
+                      className="flex-1 text-sm text-text-primary bg-transparent outline-none cursor-pointer"
+                    >
+                      <option value="" className="bg-dark-bg text-text-muted">Kurye seçin…</option>
+                      {couriers.map((c) => (
+                        <option key={c.ID} value={c.ID} className="bg-dark-bg text-text-primary">
+                          {c.Name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-text-muted font-medium">Tarih</label>
+                  <div className="flex items-center gap-2 glass-card-static px-3 py-2.5 rounded-xl border border-white/5 focus-within:border-cyan-500/50 transition-colors">
+                    <Calendar size={16} className="text-text-muted" />
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="flex-1 bg-transparent border-none outline-none text-sm text-text-primary cursor-pointer"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Özet kutusu */}
-          <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Calculator size={16} className="text-cyan-accent" />
-              Sistem Kayıtları (Beklenen)
-            </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <Kpi label="Ciro" value={fmtMoney(expected)} highlight={true} className="col-span-2" />
-              <Kpi label="Satış" value={fmtMoney(summary?.Turnover || 0)} />
-              <Kpi label="Hizmet" value={fmtMoney(0)} />
-              <Kpi
-                label="Servis Adedi"
-                value={`${summary?.ServiceCount || 0} Paket`}
-                className="col-span-2"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Sağ Kolon: Kurye Teslim Formu */}
-        <div className="col-span-1 lg:col-span-8">
-          <div className="glass-card p-6 rounded-2xl flex flex-col h-full relative overflow-hidden">
-            {/* Arka plan süsü */}
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
-
-            <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2 relative z-10">
-              <Banknote size={20} className="text-emerald-400" />
-              Kuryeden Teslim Alınan Değerler
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mb-8 relative z-10">
-              {/* Sol taraf nakit ve pos girişleri */}
-              <div className="flex flex-col gap-4">
-                <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                  Tahsilatlar
-                </h3>
-                <RowMoney label="Nakit Teslim" icon={Banknote} value={cashDelivered} onChange={setCashDelivered} />
-                <div className="flex flex-col gap-3 mt-2">
-                  <RowMoney label="Pos 1" icon={CreditCard} value={pos1} onChange={setPos1} />
-                  <RowMoney label="Pos 2" icon={CreditCard} value={pos2} onChange={setPos2} />
-                  <RowMoney label="Pos 3" icon={CreditCard} value={pos3} onChange={setPos3} />
-                </div>
-              </div>
-
-              {/* Sağ taraf ekstra giderler ve ödemeler */}
-              <div className="flex flex-col gap-4">
-                <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                  Ödemeler
-                </h3>
-                <RowMoney
-                  label="Kurye Ödemesi (Hakediş)"
-                  icon={DollarSign}
-                  value={courierPayment}
-                  onChange={setCourierPayment}
+            {/* Özet kutusu */}
+            <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
+              <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <Calculator size={16} className="text-cyan-accent" />
+                Sistem Kayıtları (Beklenen)
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <Kpi label="Ciro" value={fmtMoney(expected)} highlight={true} className="col-span-2" />
+                <Kpi label="Satış" value={fmtMoney(summary?.Turnover || 0)} />
+                <Kpi label="Hizmet" value={fmtMoney(0)} />
+                <Kpi
+                  label="Servis Adedi"
+                  value={`${summary?.ServiceCount || 0} Paket`}
+                  className="col-span-2"
                 />
               </div>
             </div>
+          </div>
 
-            {/* Toplamlar Bölümü (Kuryeden teslim alınanlar kısmı total hesaplaması) */}
-            <div className="mt-auto flex flex-col gap-4 p-5 rounded-2xl bg-gradient-to-br from-cyan-950/40 to-dark-bg border border-cyan-500/20 relative z-10">
-              <h3 className="text-xs font-semibold text-cyan-400 uppercase tracking-wide flex items-center gap-2">
-                <Calculator size={14} />
-                Hesaplaşma Özeti
-              </h3>
+          {/* Sağ Kolon: Kurye Teslim Formu */}
+          <div className="col-span-1 lg:col-span-8">
+            <div className="glass-card p-6 rounded-2xl flex flex-col h-full relative overflow-hidden">
+              {/* Arka plan süsü */}
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-              <div className="flex flex-wrap items-center gap-6 justify-between">
-                <div className="flex flex-wrap gap-6">
-                  <SummaryCell label="Pos Toplamı" value={fmtMoney(posTotal)} icon={CreditCard} />
-                  <SummaryCell label="Nakit Toplamı" value={fmtMoney(Number(cashDelivered) || 0)} icon={Banknote} />
+              <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2 relative z-10">
+                <Banknote size={20} className="text-emerald-400" />
+                Kuryeden Teslim Alınan Değerler
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 mb-8 relative z-10">
+                {/* Sol taraf nakit ve pos girişleri */}
+                <div className="flex flex-col gap-4">
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    Tahsilatlar
+                  </h3>
+                  <RowMoney label="Nakit Teslim" icon={Banknote} value={cashDelivered} onChange={setCashDelivered} />
+                  <div className="flex flex-col gap-3 mt-2">
+                    <RowMoney label="Pos 1" icon={CreditCard} value={pos1} onChange={setPos1} />
+                    <RowMoney label="Pos 2" icon={CreditCard} value={pos2} onChange={setPos2} />
+                    <RowMoney label="Pos 3" icon={CreditCard} value={pos3} onChange={setPos3} />
+                  </div>
                 </div>
 
-                <div className="w-px h-12 bg-white/10 hidden md:block"></div>
-
-                <div className="flex flex-wrap gap-6">
-                  <SummaryCell
-                    label="Teslim Edilen Toplam"
-                    value={fmtMoney(delivered)}
-                    valueClass="text-emerald-400"
-                    size="large"
-                  />
-                  <SummaryCell
-                    label="Fark (Teslim - Beklenen)"
-                    value={fmtMoney(difference)}
-                    valueClass={difference === 0 ? 'text-emerald-400' : (difference > 0 ? 'text-cyan-400' : 'text-red-400')}
-                    subtext={difference === 0 ? 'Tam' : (difference > 0 ? 'Fazla' : 'Eksik')}
-                    size="large"
+                {/* Sağ taraf ekstra giderler ve ödemeler */}
+                <div className="flex flex-col gap-4">
+                  <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                    Ödemeler
+                  </h3>
+                  <RowMoney
+                    label="Kurye Ödemesi (Hakediş)"
+                    icon={DollarSign}
+                    value={courierPayment}
+                    onChange={setCourierPayment}
                   />
                 </div>
               </div>
-            </div>
 
-            <button
-              onClick={handleSave}
-              disabled={saving || !selectedCourier}
-              className="btn-primary mt-6 w-full py-4 rounded-xl text-base font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 transition-all duration-300 relative z-10"
-            >
-              <Check size={20} />
-              {saving ? 'Rapor Kaydediliyor…' : 'Gün Sonu Raporunu Kaydet'}
-            </button>
+              {/* Toplamlar Bölümü (Kuryeden teslim alınanlar kısmı total hesaplaması) */}
+              <div className="mt-auto flex flex-col gap-4 p-5 rounded-2xl bg-gradient-to-br from-cyan-950/40 to-dark-bg border border-cyan-500/20 relative z-10">
+                <h3 className="text-xs font-semibold text-cyan-400 uppercase tracking-wide flex items-center gap-2">
+                  <Calculator size={14} />
+                  Hesaplaşma Özeti
+                </h3>
+
+                <div className="flex flex-wrap items-center gap-6 justify-between">
+                  <div className="flex flex-wrap gap-6">
+                    <SummaryCell label="Pos Toplamı" value={fmtMoney(posTotal)} icon={CreditCard} />
+                    <SummaryCell label="Nakit Toplamı" value={fmtMoney(Number(cashDelivered) || 0)} icon={Banknote} />
+                  </div>
+
+                  <div className="w-px h-12 bg-white/10 hidden md:block"></div>
+
+                  <div className="flex flex-wrap gap-6">
+                    <SummaryCell
+                      label="Teslim Edilen Toplam"
+                      value={fmtMoney(delivered)}
+                      valueClass="text-emerald-400"
+                      size="large"
+                    />
+                    <SummaryCell
+                      label="Fark (Teslim - Beklenen)"
+                      value={fmtMoney(difference)}
+                      valueClass={difference === 0 ? 'text-emerald-400' : (difference > 0 ? 'text-cyan-400' : 'text-red-400')}
+                      subtext={difference === 0 ? 'Tam' : (difference > 0 ? 'Fazla' : 'Eksik')}
+                      size="large"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSave}
+                disabled={saving || !selectedCourier}
+                className="btn-primary mt-6 w-full py-4 rounded-xl text-base font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 transition-all duration-300 relative z-10"
+              >
+                <Check size={20} />
+                {saving ? 'Rapor Kaydediliyor…' : 'Gün Sonu Raporunu Kaydet'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="flex-1 min-h-0">
+          <CourierHistoryTable />
+        </div>
+      )}
     </div>
   );
 }

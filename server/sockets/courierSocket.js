@@ -19,46 +19,6 @@ export function setupCourierSocket(io) {
             }
         });
 
-        // Courier sends its GPS position
-        socket.on('location:update', (data) => {
-            // data = { courierID, lat, lng }
-
-            // Persist to database (mirror REST endpoint logic)
-            try {
-                const db = getDb();
-                if (db && data.courierID && data.lat != null && data.lng != null) {
-                    // Calculate distance from previous position
-                    const current = db.prepare('SELECT Lat, Lng, DailyDistanceKM FROM Couriers WHERE ID = ?').get(data.courierID);
-
-                    let addedKM = 0;
-                    if (current && current.Lat != null && current.Lng != null && current.Lat !== 0 && current.Lng !== 0) {
-                        // Haversine inline (avoids import issues)
-                        const toRad = (deg) => (deg * Math.PI) / 180;
-                        const R = 6371; // Earth radius in km
-                        const dLat = toRad(data.lat - current.Lat);
-                        const dLng = toRad(data.lng - current.Lng);
-                        const a = Math.sin(dLat / 2) ** 2 +
-                            Math.cos(toRad(current.Lat)) * Math.cos(toRad(data.lat)) *
-                            Math.sin(dLng / 2) ** 2;
-                        addedKM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                    }
-
-                    db.prepare('UPDATE Couriers SET Lat = ?, Lng = ?, DailyDistanceKM = DailyDistanceKM + ? WHERE ID = ?')
-                        .run(data.lat, data.lng, addedKM, data.courierID);
-
-                    console.log(`📍 Socket location saved: Courier ${data.courierID} → ${data.lat}, ${data.lng} (+${addedKM.toFixed(2)} km)`);
-                }
-            } catch (err) {
-                console.error('Error persisting socket location:', err.message);
-            }
-
-            // Broadcast to all dashboard clients (ensure courierID is always a number)
-            courierNsp.emit('location:changed', {
-                courierID: Number(data.courierID),
-                lat: data.lat,
-                lng: data.lng,
-            });
-        });
 
         // Courier changes status
         socket.on('status:update', (data) => {

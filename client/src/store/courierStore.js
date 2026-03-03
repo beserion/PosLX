@@ -39,12 +39,6 @@ export const useCourierStore = create((set) => ({
     },
 
     // Client-side optimistic updates (also triggered by socket events)
-    updateLocation: (courierID, lat, lng) =>
-        set((state) => ({
-            couriers: state.couriers.map((c) =>
-                c.ID === Number(courierID) ? { ...c, Lat: lat, Lng: lng } : c
-            ),
-        })),
 
     updateStatus: (courierID, status) =>
         set((state) => ({

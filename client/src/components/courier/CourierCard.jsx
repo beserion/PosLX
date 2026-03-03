@@ -1,6 +1,6 @@
 import { useCourierStore } from '../../store/courierStore';
 import { useTunnelStore } from '../../store/tunnelStore';
-import { Truck, MapPin, Phone, QrCode, Trash2 } from 'lucide-react';
+import { Truck, Phone, QrCode, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../../hooks/useToast';
@@ -53,9 +53,6 @@ export default function CourierCard({ courier }) {
                     <div className="flex items-center gap-3 mt-0.5">
                         <span className="flex items-center gap-1 text-xs text-text-muted">
                             <Phone size={11} /> {courier.Phone}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-text-muted">
-                            <MapPin size={11} /> {courier.DailyDistanceKM.toFixed(1)} km
                         </span>
                     </div>
                 </div>

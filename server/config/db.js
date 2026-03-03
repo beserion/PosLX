@@ -127,9 +127,6 @@ function initSchema(db) {
       Name            TEXT    NOT NULL,
       Phone           TEXT,
       Status          TEXT    NOT NULL DEFAULT 'Idle',
-      Lat             REAL,
-      Lng             REAL,
-      DailyDistanceKM REAL    NOT NULL DEFAULT 0,
       CreatedAt       TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -446,15 +443,15 @@ function initSchema(db) {
   if (courierCount.cnt === 0) {
     /* Test için yoruma alındı
     const insertCourier = db.prepare(
-      'INSERT INTO Couriers (Name, Phone, Status, Lat, Lng, DailyDistanceKM) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO Couriers (Name, Phone, Status) VALUES (?, ?, ?)'
     );
     const seedCouriers = db.transaction(() => {
       const couriers = [
-        ['Ahmet Yılmaz', '+90 532 111 2233', 'Delivering', 41.0082, 28.9784, 14.3],
-        ['Mehmet Demir', '+90 535 222 3344', 'Idle', 41.0135, 28.9553, 7.1],
-        ['Ayşe Kaya', '+90 538 333 4455', 'Delivering', 41.0251, 29.0130, 22.6],
-        ['Fatma Çelik', '+90 541 444 5566', 'Offline', 40.9923, 28.8950, 0],
-        ['Ali Öztürk', '+90 544 555 6677', 'Delivering', 41.0390, 28.9860, 18.9],
+        ['Ahmet Yılmaz', '+90 532 111 2233', 'Delivering'],
+        ['Mehmet Demir', '+90 535 222 3344', 'Idle'],
+        ['Ayşe Kaya', '+90 538 333 4455', 'Delivering'],
+        ['Fatma Çelik', '+90 541 444 5566', 'Offline'],
+        ['Ali Öztürk', '+90 544 555 6677', 'Delivering'],
       ];
       for (const c of couriers) insertCourier.run(...c);
     });

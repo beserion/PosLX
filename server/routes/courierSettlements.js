@@ -122,5 +122,47 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ── GET /api/courier-settlements/history ───────────────────────
+router.get('/history', async (req, res) => {
+  try {
+    const db = getDb();
+    if (!db) return res.status(503).json({ error: 'Database not available' });
+
+    const conditions = [];
+    const params = [];
+
+    if (req.query.courierId) {
+      conditions.push('s.CourierID = ?');
+      params.push(Number(req.query.courierId));
+    }
+    if (req.query.startDate) {
+      conditions.push('date(s.Date) >= date(?)');
+      params.push(req.query.startDate);
+    }
+    if (req.query.endDate) {
+      conditions.push('date(s.Date) <= date(?)');
+      params.push(req.query.endDate);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const history = db
+      .prepare(
+        `
+        SELECT s.*, c.Name as CourierName
+        FROM CourierSettlements s
+        LEFT JOIN Couriers c ON c.ID = s.CourierID
+        ${whereClause}
+        ORDER BY s.Date DESC, s.ID DESC
+      `
+      )
+      .all(...params);
+
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 

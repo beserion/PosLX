@@ -11,7 +11,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             <p className="font-bold text-text-primary mb-1">{label}</p>
             {payload.map((p, i) => (
                 <p key={i} style={{ color: p.color }}>
-                    {p.name}: {p.value}{p.name === 'km' ? ' km' : ''}
+                    {p.name}: {p.value}
                 </p>
             ))}
         </div>
@@ -44,7 +44,7 @@ export default function CourierPerformance() {
                 </div>
                 <div>
                     <h3 className="text-sm font-bold text-text-primary">Courier Performance</h3>
-                    <p className="text-xs text-text-muted">Orders delivered vs. KM traveled</p>
+                    <p className="text-xs text-text-muted">Orders delivered</p>
                 </div>
             </div>
 
@@ -57,7 +57,6 @@ export default function CourierPerformance() {
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                         <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
                         <Bar dataKey="orders" name="Orders" fill="#06b6d4" radius={[6, 6, 0, 0]} />
-                        <Bar dataKey="km" name="km" fill="#f59e0b" radius={[6, 6, 0, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
             </div>

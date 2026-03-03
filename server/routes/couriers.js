@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
-import { haversine } from '../utils/haversine.js';
 import { courierAuth } from '../middleware/courierAuth.js';
 import { io } from '../index.js';
 
@@ -14,8 +13,8 @@ router.get('/', async (req, res) => {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, returning mock couriers");
                 return res.json([
-                    { ID: 1, Name: 'Ahmet Yılmaz', Phone: '+90 532 111 2233', Status: 'Delivering', Lat: 41.0082, Lng: 28.9784, DailyDistanceKM: 14.3 },
-                    { ID: 2, Name: 'Mehmet Demir', Phone: '+90 535 222 3344', Status: 'Idle', Lat: 41.0135, Lng: 28.9553, DailyDistanceKM: 7.1 }
+                    { ID: 1, Name: 'Ahmet Yılmaz', Phone: '+90 532 111 2233', Status: 'Delivering' },
+                    { ID: 2, Name: 'Mehmet Demir', Phone: '+90 535 222 3344', Status: 'Idle' }
                 ]);
             }
             return res.status(503).json({ error: 'Database not available' });
@@ -36,8 +35,8 @@ router.post('/', async (req, res) => {
         const db = getDb();
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
-        const info = db.prepare('INSERT INTO Couriers (Name, Phone, Status, Lat, Lng, DailyDistanceKM) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(Name, Phone || '', 'Offline', 0.0, 0.0, 0.0);
+        const info = db.prepare('INSERT INTO Couriers (Name, Phone, Status) VALUES (?, ?, ?)')
+            .run(Name, Phone || '', 'Offline');
 
         const newCourier = db.prepare('SELECT * FROM Couriers WHERE ID = ?').get(info.lastInsertRowid);
         res.status(201).json(newCourier);
@@ -77,40 +76,5 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
-// PUT /api/couriers/:id/location — update GPS + compute distance (requires courier API token)
-router.put('/:id/location', courierAuth, async (req, res) => {
-    try {
-        const { lat, lng } = req.body;
-        // Geçersiz veya (0,0) koordinatları tamamen yoksay
-        if (
-            typeof lat !== 'number' ||
-            typeof lng !== 'number' ||
-            (lat === 0 && lng === 0)
-        ) {
-            return res.status(400).json({ error: 'Invalid coordinates' });
-        }
-
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
-
-        // Get current location to calculate distance
-        const current = db.prepare('SELECT Lat, Lng, DailyDistanceKM FROM Couriers WHERE ID = ?').get(req.params.id);
-
-        let addedKM = 0;
-        if (current && current.Lat != null && current.Lng != null) {
-            addedKM = haversine(current.Lat, current.Lng, lat, lng);
-        }
-
-        db.prepare('UPDATE Couriers SET Lat = ?, Lng = ?, DailyDistanceKM = DailyDistanceKM + ? WHERE ID = ?')
-            .run(lat, lng, addedKM, req.params.id);
-
-        // Notify dashboard clients
-        io.of('/couriers').emit('location:changed', { courierID: Number(req.params.id), lat, lng });
-
-        res.json({ success: true, addedKM });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 export default router;
