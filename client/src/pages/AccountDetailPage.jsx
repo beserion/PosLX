@@ -68,8 +68,17 @@ export default function AccountDetailPage() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <KpiCard label="Toplam Borç" value={fmtMoney(acc.totalDebt)} icon={ArrowUpRight} color="#ef4444" />
                     <KpiCard label="Toplam Alacak" value={fmtMoney(acc.totalCredit)} icon={ArrowDownLeft} color="#10b981" />
-                    <KpiCard label="Net Bakiye" value={fmtMoney(acc.calculatedBalance)} icon={DollarSign}
-                        color={acc.calculatedBalance > 0 ? '#ef4444' : '#10b981'} />
+                    <KpiCard
+                        label={isCustomer ? "Bize Kalan Borç" : "Kalan Alacağı (Bizim Borcumuz)"}
+                        value={fmtMoney(Math.abs(acc.calculatedBalance))}
+                        icon={DollarSign}
+                        color={
+                            (isCustomer && acc.calculatedBalance > 0) ? '#ef4444' :
+                                (isCustomer && acc.calculatedBalance < 0) ? '#10b981' :
+                                    (!isCustomer && acc.calculatedBalance < 0) ? '#ef4444' :
+                                        '#10b981'
+                        }
+                    />
                     <KpiCard label="İşlem Sayısı" value={ledger.length} icon={Hash} color="#a78bfa" />
                 </div>
 
@@ -151,8 +160,9 @@ export default function AccountDetailPage() {
                                             {entry.Type === 'Alacak' ? fmtMoney(entry.Amount) : ''}
                                         </td>
                                         <td className={`py-3 text-right font-bold whitespace-nowrap
-                                            ${entry.RunningBalance > 0 ? 'text-red-400' : entry.RunningBalance < 0 ? 'text-emerald-400' : 'text-text-muted'}`}>
-                                            {fmtMoney(entry.RunningBalance)}
+                                            ${entry.RunningBalance > 0 ? (isCustomer ? 'text-red-400' : 'text-emerald-400')
+                                                : entry.RunningBalance < 0 ? (isCustomer ? 'text-emerald-400' : 'text-red-400') : 'text-text-muted'}`}>
+                                            {fmtMoney(Math.abs(entry.RunningBalance))} {entry.RunningBalance < 0 ? '(A)' : entry.RunningBalance > 0 ? '(B)' : ''}
                                         </td>
                                     </tr>
                                 ))}

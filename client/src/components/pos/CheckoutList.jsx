@@ -1,5 +1,6 @@
 import { usePosStore } from '../../store/posStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import api from '../../lib/api';
 import { Minus, Plus, Trash2, CreditCard, Banknote, ShoppingBag, CheckCircle2, Truck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import BarcodeInput from './BarcodeInput';
@@ -19,6 +20,14 @@ export default function CheckoutList({ onClose }) {
     const completeSale = usePosStore((s) => s.completeSale);
     const checkoutCourierID = usePosStore((s) => s.checkoutCourierID);
     const setCheckoutCourierID = usePosStore((s) => s.setCheckoutCourierID);
+    const discountAmount = usePosStore((s) => s.discountAmount);
+    const setDiscountAmount = usePosStore((s) => s.setDiscountAmount);
+    const serviceFeeCount = usePosStore((s) => s.serviceFeeCount);
+    const addServiceFee = usePosStore((s) => s.addServiceFee);
+    const removeServiceFee = usePosStore((s) => s.removeServiceFee);
+    const serviceFeeSetting = usePosStore((s) => s.serviceFeeSetting);
+    const fetchSettings = usePosStore((s) => s.fetchSettings);
+    const taxRateSetting = usePosStore((s) => s.taxRateSetting);
 
     const couriers = useCourierStore((s) => s.couriers);
     const fetchCouriers = useCourierStore((s) => s.fetchCouriers);
@@ -29,15 +38,24 @@ export default function CheckoutList({ onClose }) {
 
     useEffect(() => {
         fetchCouriers();
-    }, [fetchCouriers]);
+        fetchSettings();
+    }, [fetchCouriers, fetchSettings]);
 
     const handleComplete = async () => {
         if (cart.length === 0) return;
         try {
             const sale = await completeSale();
             if (sale) {
+                // Background direct print via Node
+                api.post('/print', sale).then(() => {
+                    toast.success('Termal yazıcıdan fiş basılıyor...');
+                }).catch(err => {
+                    console.error('Yazdırma hatası:', err);
+                    toast.error('Fiş yazdırma başarısız. Yazıcıyı kontrol edin.');
+                });
+
                 setReceiptData(sale);
-                setShowReceipt(true);
+                // setShowReceipt(true); // Optional: if we want to still show UI popup. Commented out since user wants fully silent.
                 toast.success(`Satış #${sale.receiptNo} tamamlandı — ₺${sale.total.toFixed(2)}`);
             }
         } catch (err) {
@@ -147,15 +165,61 @@ export default function CheckoutList({ onClose }) {
                     </div>
                 </div>
 
-                {/* Totals */}
-                <div className="px-5 py-4 border-t border-glass-border space-y-1.5">
-                    <div className="flex justify-between text-sm text-text-secondary">
+                {/* Totals & Discounts */}
+                <div className="px-5 py-4 border-t border-glass-border space-y-2">
+                    {serviceFeeSetting > 0 && (
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-glass-border/30">
+                            <span className="text-sm font-semibold text-text-secondary">Servis Ücreti (₺{serviceFeeSetting})</span>
+                            <div className="flex items-center gap-2">
+                                {serviceFeeCount > 0 && (
+                                    <button
+                                        onClick={removeServiceFee}
+                                        className="w-7 h-7 rounded-lg glass-card flex items-center justify-center text-text-muted hover:text-danger"
+                                    >
+                                        <Minus size={14} />
+                                    </button>
+                                )}
+                                {serviceFeeCount > 0 && (
+                                    <span className="text-sm font-bold w-4 text-center">{serviceFeeCount}</span>
+                                )}
+                                <button
+                                    onClick={addServiceFee}
+                                    className="w-7 h-7 rounded-lg glass-card flex items-center justify-center text-text-muted hover:text-emerald-accent"
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex justify-between items-center text-sm text-text-secondary">
+                        <span>İndirim (₺)</span>
+                        <input
+                            type="number"
+                            className="glass-input w-16 h-7 px-1.5 py-0 font-medium text-right text-sm"
+                            value={discountAmount || ''}
+                            onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                            placeholder="0"
+                            min="0"
+                        />
+                    </div>
+
+                    <div className="flex justify-between text-sm text-text-secondary pt-1">
                         <span>Subtotal</span><span>₺{getSubtotal().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-text-secondary">
-                        <span>Tax (8%)</span><span>₺{getTax().toFixed(2)}</span>
+                        <span>Tax (%{taxRateSetting})</span><span>₺{getTax().toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-bold text-text-primary pt-1">
+                    {serviceFeeCount > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-accent">
+                            <span>Service Fee (x{serviceFeeCount})</span><span>+ ₺{(serviceFeeCount * serviceFeeSetting).toFixed(2)}</span>
+                        </div>
+                    )}
+                    {discountAmount > 0 && (
+                        <div className="flex justify-between text-sm text-danger">
+                            <span>Discount</span><span>- ₺{discountAmount.toFixed(2)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between text-lg font-bold text-text-primary pt-1 mt-1 border-t border-glass-border/30">
                         <span>Total</span><span className="text-cyan-accent glow-cyan">₺{getTotal().toFixed(2)}</span>
                     </div>
                 </div>
@@ -181,6 +245,7 @@ export default function CheckoutList({ onClose }) {
                 sale={receiptData}
                 isOpen={showReceipt}
                 onClose={() => setShowReceipt(false)}
+                autoPrint={true}
             />
         </>
     );

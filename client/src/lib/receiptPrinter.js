@@ -24,13 +24,22 @@ export function printViaWebAPI(receiptElement) {
       <style>
         @page { size: 80mm auto; margin: 0; }
         body {
-          margin: 0; padding: 4mm;
-          font-family: 'Courier New', monospace;
-          font-size: 12px;
+          margin: 0; padding: 2mm 4mm;
+          font-family: 'Arial', 'Courier New', monospace;
+          font-size: 16px; /* Büyütüldü */
+          font-weight: 800; /* Daha kalın */
+          line-height: 1.3;
           width: 80mm;
           color: #000;
         }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; font-weight: 800; font-size: 15px; }
+        b, strong { font-weight: 900; }
+        * { color: #000 !important; }
+        h1, h2, h3, h4 { margin: 4px 0; font-size: 18px; text-transform: uppercase; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .my-2 { margin: 8px 0; }
+        .border-b { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
       </style>
     </head>
     <body>${receiptElement.innerHTML}</body>
@@ -39,6 +48,8 @@ export function printViaWebAPI(receiptElement) {
     doc.close();
 
     iframe.contentWindow.focus();
+
+    // Kiosk Mode Auto-Print (Tarayıcı destekliyorsa)
     iframe.contentWindow.print();
 
     // Cleanup after print dialog

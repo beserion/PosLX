@@ -182,22 +182,26 @@ router.post('/:id/payment', async (req, res) => {
         const recordPayment = db.transaction(() => {
             const isSupplier = account.Type === 'Tedarikçi';
             const label = isSupplier ? 'Ödeme' : 'Tahsilat';
+            // Tahsilat (Customer pays us) -> reduces their debt -> Alacak
+            // Ödeme (We pay supplier) -> reduces our debt to them -> Borç (increases their balance towards positive/0)
+            const ledgerType = isSupplier ? 'Borç' : 'Alacak';
+            const balanceMultiplier = isSupplier ? 1 : -1;
 
-            // Ledger entry: Alacak (debt reduced)
+            // Ledger entry
             db.prepare(
                 `INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType)
-                 VALUES (?, 'Alacak', ?, ?, 'Payment')`
-            ).run(req.params.id, Amount, Description || `${label} — ${account.Name}`);
+                 VALUES (?, ?, ?, ?, 'Payment')`
+            ).run(req.params.id, ledgerType, Amount, Description || `${label} — ${account.Name}`);
 
             // Update balance
-            db.prepare('UPDATE Accounts SET Balance = Balance - ? WHERE ID = ?')
-                .run(Amount, req.params.id);
+            db.prepare('UPDATE Accounts SET Balance = Balance + ? WHERE ID = ?')
+                .run(Amount * balanceMultiplier, req.params.id);
 
             // Account transaction record
             db.prepare(
                 `INSERT INTO AccountTransactions (Type, Amount, Description, AccountID, PaymentMethod)
                  VALUES ('Payment', ?, ?, ?, ?)`
-            ).run(Amount, `${label} — ${account.Name}`, req.params.id, PaymentMethod || 'Cash');
+            ).run(Amount * (isSupplier ? -1 : 1), `${label} — ${account.Name}`, req.params.id, PaymentMethod || 'Cash');
         });
 
         recordPayment();

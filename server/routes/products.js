@@ -124,15 +124,15 @@ router.get('/barcode/:barcode', async (req, res) => {
 // ── POST /api/products — create product with multiple barcodes ──
 router.post('/', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
         const db = getDb();
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
         const insertProduct = db.prepare(
-            `INSERT INTO Products (Name, Stock, CostPrice, SalePrice, Category, ImageURL)
-             VALUES (?, ?, ?, ?, ?, ?)`
+            `INSERT INTO Products (Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
         );
         const insertBarcode = db.prepare(
             'INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (?, ?)'
@@ -140,7 +140,7 @@ router.post('/', async (req, res) => {
         const getProduct = db.prepare('SELECT * FROM Products WHERE ID = ?');
 
         const createTx = db.transaction(() => {
-            const info = insertProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null);
+            const info = insertProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null, ShowInPos !== undefined ? ShowInPos : 1);
             const productId = info.lastInsertRowid;
             for (const barcode of barcodeList) {
                 insertBarcode.run(productId, barcode);
@@ -165,7 +165,7 @@ router.post('/', async (req, res) => {
 // ── PUT /api/products/:id — update product + replace barcodes ──
 router.put('/:id', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
         const db = getDb();
@@ -173,7 +173,7 @@ router.put('/:id', async (req, res) => {
 
         const updateProduct = db.prepare(
             `UPDATE Products
-             SET Name = ?, Stock = ?, CostPrice = ?, SalePrice = ?, Category = ?, ImageURL = ?
+             SET Name = ?, Stock = ?, CostPrice = ?, SalePrice = ?, Category = ?, ImageURL = ?, ShowInPos = ?
              WHERE ID = ?`
         );
         const deleteBarcodes = db.prepare('DELETE FROM ProductBarcodes WHERE ProductID = ?');
@@ -181,7 +181,7 @@ router.put('/:id', async (req, res) => {
         const getProduct = db.prepare('SELECT * FROM Products WHERE ID = ?');
 
         const updateTx = db.transaction(() => {
-            const info = updateProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null, req.params.id);
+            const info = updateProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null, ShowInPos !== undefined ? ShowInPos : 1, req.params.id);
             if (info.changes === 0) return null;
             deleteBarcodes.run(req.params.id);
             for (const barcode of barcodeList) {
@@ -263,6 +263,80 @@ router.put('/:id/stock', async (req, res) => {
         if (!db) return res.status(503).json({ error: 'Database not available' });
         db.prepare('UPDATE Products SET Stock = ? WHERE ID = ?').run(stock, req.params.id);
         res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── GET /api/products/:id/dashboard — product details and chart stats ──
+router.get('/:id/dashboard', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const db = getDb();
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const product = db.prepare(`
+            SELECT p.*, GROUP_CONCAT(pb.Barcode) AS BarcodesCsv
+            FROM Products p
+            LEFT JOIN ProductBarcodes pb ON pb.ProductID = p.ID
+            WHERE p.ID = ? AND IFNULL(p.IsDeleted, 0) = 0
+            GROUP BY p.ID
+        `).get(id);
+
+        if (!product) return res.status(404).json({ error: 'Product not found' });
+        product.Barcodes = product.BarcodesCsv ? product.BarcodesCsv.split(',') : [];
+        product.BarcodesCsv = undefined;
+
+        // Son 6 ayın etiketlerini üret (YYYY-MM)
+        const monthLabels = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            monthLabels.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+        }
+
+        const statsRaw = db.prepare(`
+            SELECT 
+              'sale' as type, strftime('%Y-%m', s.CreatedAt) as month, SUM(si.Qty) as qty
+            FROM SaleItems si JOIN Sales s ON s.ID = si.SaleID
+            WHERE si.ProductID = ? AND s.CreatedAt >= date('now', '-5 months', 'start of month')
+            GROUP BY month
+            UNION ALL
+            SELECT 
+              'purchase' as type, strftime('%Y-%m', i.CreatedAt) as month, SUM(ii.Qty) as qty
+            FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID
+            WHERE ii.ProductID = ? AND i.CreatedAt >= date('now', '-5 months', 'start of month')
+            GROUP BY month
+        `).all(id, id);
+
+        const chartData = monthLabels.map(m => {
+            const sRow = statsRaw.find(r => r.type === 'sale' && r.month === m);
+            const pRow = statsRaw.find(r => r.type === 'purchase' && r.month === m);
+
+            // Ay isimlerini Türkçeleştirmek için:
+            const [year, month] = m.split('-');
+            const dateObj = new Date(year, month - 1);
+            const monthName = dateObj.toLocaleString('tr-TR', { month: 'short' });
+
+            return {
+                rawMonth: m,
+                monthName: `${monthName} ${year.slice(-2)}`,
+                salesQty: sRow ? sRow.qty : 0,
+                purchaseQty: pRow ? pRow.qty : 0
+            };
+        });
+
+        const metrics = db.prepare(`
+            SELECT
+              (SELECT IFNULL(SUM(si.Qty), 0) FROM SaleItems si WHERE si.ProductID = ?) as totalSalesQty,
+              (SELECT IFNULL(SUM(si.Qty * si.UnitPrice), 0) FROM SaleItems si WHERE si.ProductID = ?) as totalSalesRevenue,
+              (SELECT MAX(s.CreatedAt) FROM SaleItems si JOIN Sales s ON s.ID = si.SaleID WHERE si.ProductID = ?) as lastSaleDate,
+              (SELECT IFNULL(SUM(ii.Qty), 0) FROM InvoiceItems ii WHERE ii.ProductID = ?) as totalPurchaseQty,
+              (SELECT IFNULL(SUM(ii.Qty * ii.UnitPrice), 0) FROM InvoiceItems ii WHERE ii.ProductID = ?) as totalPurchaseCost,
+              (SELECT MAX(i.CreatedAt) FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID WHERE ii.ProductID = ?) as lastPurchaseDate
+        `).get(id, id, id, id, id, id);
+
+        res.json({ product, chartData, metrics });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

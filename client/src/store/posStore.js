@@ -10,7 +10,28 @@ export const usePosStore = create((set, get) => ({
     lastSale: null,
     loading: false,
     error: null,
-    specialPrices: [],
+    discountAmount: 0,
+    serviceFeeCount: 0,
+    serviceFeeSetting: 0,
+    taxRateSetting: 8,
+
+    setDiscountAmount: (amount) => set({ discountAmount: amount }),
+    addServiceFee: () => set((state) => ({ serviceFeeCount: state.serviceFeeCount + 1 })),
+    removeServiceFee: () => set((state) => ({ serviceFeeCount: Math.max(0, state.serviceFeeCount - 1) })),
+
+    fetchSettings: async () => {
+        try {
+            const { data } = await api.get('/settings');
+            if (data.serviceFeeAmount) {
+                set({ serviceFeeSetting: Number(data.serviceFeeAmount) });
+            }
+            if (data.taxRate) {
+                set({ taxRateSetting: Number(data.taxRate) });
+            }
+        } catch (err) {
+            console.error('Failed to fetch settings for POS:', err.message);
+        }
+    },
 
     setCheckoutCourierID: (id) => set({ checkoutCourierID: id }),
 
@@ -138,15 +159,24 @@ export const usePosStore = create((set, get) => ({
 
     setPaymentMethod: (method) => set({ paymentMethod: method }),
 
-    clearCart: () => set({ cart: [], paymentMethod: 'Cash', checkoutCourierID: null }),
+    clearCart: () => set({ cart: [], paymentMethod: 'Cash', checkoutCourierID: null, discountAmount: 0, serviceFeeCount: 0 }),
 
     getSubtotal: () =>
         get().cart.reduce(
             (sum, c) => sum + (c.EffectivePrice ?? c.SalePrice) * c.qty,
             0
         ),
-    getTax: () => get().getSubtotal() * 0.08,
-    getTotal: () => get().getSubtotal() + get().getTax(),
+    getTax: () => get().getSubtotal() * (get().taxRateSetting / 100), // Adjust tax logic as needed based on net vs gross 
+    getTotal: () => {
+        const subtotal = get().getSubtotal();
+        const tax = get().getTax();
+        let total = subtotal + tax;
+        if (get().serviceFeeCount > 0) {
+            total += get().serviceFeeCount * get().serviceFeeSetting;
+        }
+        total -= get().discountAmount;
+        return total > 0 ? total : 0;
+    },
 
     findByBarcode: (barcode) => get().products.find((p) => p.Barcodes?.includes(barcode) || p.Barcode === barcode) || null,
 
@@ -159,6 +189,7 @@ export const usePosStore = create((set, get) => ({
         const total = state.getTotal();
 
         try {
+            const appliedServiceFee = state.serviceFeeCount * state.serviceFeeSetting;
             const { data } = await api.post('/sales', {
                 items: state.cart.map((c) => ({
                     productID: c.ID,
@@ -167,7 +198,8 @@ export const usePosStore = create((set, get) => ({
                 })),
                 paymentMethod: state.paymentMethod,
                 tax,
-                discount: 0,
+                discount: state.discountAmount,
+                serviceFee: appliedServiceFee,
                 courierID: state.checkoutCourierID || null,
             });
 
@@ -176,12 +208,14 @@ export const usePosStore = create((set, get) => ({
                 items: [...state.cart],
                 subtotal,
                 tax,
+                discount: state.discountAmount,
+                serviceFee: appliedServiceFee,
                 total,
                 paymentMethod: state.paymentMethod,
                 date: new Date(),
             };
 
-            set({ lastSale: saleData, cart: [], paymentMethod: 'Cash', checkoutCourierID: null });
+            set({ lastSale: saleData, cart: [], paymentMethod: 'Cash', checkoutCourierID: null, discountAmount: 0, serviceFeeCount: 0 });
 
             // Refresh product stock from server
             get().fetchProducts();

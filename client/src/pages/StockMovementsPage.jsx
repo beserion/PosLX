@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { Calendar, Search, Filter } from 'lucide-react';
 
@@ -10,6 +11,7 @@ function fmtMoney(v) {
 }
 
 export default function StockMovementsPage() {
+  const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
 
   const [startDate, setStartDate] = useState(today);
@@ -149,7 +151,8 @@ export default function StockMovementsPage() {
               {rows.map((r) => (
                 <tr
                   key={r.ID}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  onClick={() => navigate(`/products/${r.ID}/dashboard`)}
+                  className="border-b border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer"
                 >
                   <td className="py-2 pr-3 text-text-muted whitespace-nowrap">
                     {r.Barcode || '—'}

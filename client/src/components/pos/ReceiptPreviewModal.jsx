@@ -1,15 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, Download, Usb } from 'lucide-react';
 import ReceiptTemplate from './ReceiptTemplate';
 import { printViaWebAPI, isSerialAvailable, printViaSerial } from '../../lib/receiptPrinter';
 import { useToast } from '../../hooks/useToast';
+import { usePosStore } from '../../store/posStore';
 
-export default function ReceiptPreviewModal({ sale, isOpen, onClose }) {
+export default function ReceiptPreviewModal({ sale, isOpen, onClose, autoPrint = false }) {
     const receiptRef = useRef(null);
     const toast = useToast();
-
-    if (!isOpen || !sale) return null;
+    const taxRateSetting = usePosStore((s) => s.taxRateSetting);
 
     const handlePrint = () => {
         if (receiptRef.current) {
@@ -17,6 +17,20 @@ export default function ReceiptPreviewModal({ sale, isOpen, onClose }) {
             toast.success('Yazdırma komutu gönderildi');
         }
     };
+
+    useEffect(() => {
+        if (isOpen && autoPrint && receiptRef.current) {
+            // A brief timeout to ensure React has fully rendered the template into the DOM
+            const timer = setTimeout(() => {
+                handlePrint();
+                // Optionally close immediately after print
+                onClose();
+            }, 150);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, autoPrint, sale]);
+
+    if (!isOpen || !sale) return null;
 
     const handleUSBPrint = async () => {
         try {
@@ -59,7 +73,7 @@ export default function ReceiptPreviewModal({ sale, isOpen, onClose }) {
 
                             {/* Receipt Preview */}
                             <div className="bg-white rounded-xl p-2 mb-4" ref={receiptRef}>
-                                <ReceiptTemplate sale={sale} />
+                                <ReceiptTemplate sale={{ ...sale, taxRate: taxRateSetting }} />
                             </div>
 
                             {/* Action Buttons */}

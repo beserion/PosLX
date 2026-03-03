@@ -13,6 +13,7 @@ import {
     BarChart3,
     PercentCircle,
     AlertTriangle as AlertTriangleIcon,
+    Settings,
 } from 'lucide-react';
 
 const links = [
@@ -28,8 +29,9 @@ const links = [
     { to: '/courier-settlement', icon: Truck, label: 'Kurye Rpr.' },
     { to: '/special-prices', icon: PercentCircle, label: 'Özel Fiyat' },
     { to: '/staff', icon: Users, label: 'Personel' },
-    { to: '/cancellations', icon: AlertTriangleIcon, label: 'İptal Log' },
-    { to: '/orders', icon: ShoppingBag, label: 'Siparişler' },
+    // { to: '/cancellations', icon: AlertTriangleIcon, label: 'İptal Log' },
+    // { to: '/orders', icon: ShoppingBag, label: 'Siparişler' },
+    { to: '/settings', icon: Settings, label: 'Ayarlar' },
 ];
 
 export default function Sidebar() {

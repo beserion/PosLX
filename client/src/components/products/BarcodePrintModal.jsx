@@ -27,7 +27,7 @@ export default function BarcodePrintModal({ product, onClose }) {
                         height: 100vh;
                         display: flex;
                         align-items: center;
-                        justify-center;
+                        justify-content: center;
                         margin: 0;
                         padding: 0;
                         box-shadow: none !important;

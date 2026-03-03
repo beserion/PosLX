@@ -103,6 +103,7 @@ function initSchema(db) {
       TotalAmount   REAL    NOT NULL DEFAULT 0,
       Tax           REAL    NOT NULL DEFAULT 0,
       Discount      REAL    NOT NULL DEFAULT 0,
+      ServiceFee    REAL    NOT NULL DEFAULT 0,
       PaymentMethod TEXT    NOT NULL DEFAULT 'Cash',
       CourierID     INTEGER,
       AccountID     INTEGER,
@@ -158,6 +159,9 @@ function initSchema(db) {
       Type          TEXT    NOT NULL DEFAULT 'Fatura',
       Counterparty  TEXT    NOT NULL,
       TotalAmount   REAL    NOT NULL DEFAULT 0,
+      SubTotal      REAL    NOT NULL DEFAULT 0,
+      TotalDiscount REAL    NOT NULL DEFAULT 0,
+      TotalVat      REAL    NOT NULL DEFAULT 0,
       Description   TEXT,
       AccountID     INTEGER,
       CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -170,6 +174,12 @@ function initSchema(db) {
       ProductID     INTEGER NOT NULL,
       Qty           INTEGER NOT NULL DEFAULT 1,
       UnitPrice     REAL    NOT NULL DEFAULT 0,
+      VatRate       REAL    NOT NULL DEFAULT 0,
+      VatType       TEXT    NOT NULL DEFAULT 'Hariç',
+      Disc1         REAL    NOT NULL DEFAULT 0,
+      Disc2         REAL    NOT NULL DEFAULT 0,
+      Disc3         REAL    NOT NULL DEFAULT 0,
+      RowTotal      REAL    NOT NULL DEFAULT 0,
       FOREIGN KEY (InvoiceID) REFERENCES Invoices(ID) ON DELETE CASCADE,
       FOREIGN KEY (ProductID) REFERENCES Products(ID)
     );
@@ -330,9 +340,32 @@ function initSchema(db) {
   safeAddColumn('Products', 'CriticalStock', 'INTEGER NOT NULL DEFAULT 5');
   safeAddColumn('Products', 'ShelfLifeDays', 'INTEGER');
   safeAddColumn('Products', 'CostMethod', "TEXT NOT NULL DEFAULT 'WeightedAvg'");
+  safeAddColumn('Products', 'CostMethod', "TEXT NOT NULL DEFAULT 'WeightedAvg'");
   safeAddColumn('Products', 'IsDeleted', 'INTEGER NOT NULL DEFAULT 0');
+  safeAddColumn('Products', 'ShowInPos', 'INTEGER NOT NULL DEFAULT 1');
   safeAddColumn('Sales', 'AccountID', 'INTEGER');
+  safeAddColumn('Sales', 'ServiceFee', 'REAL NOT NULL DEFAULT 0');
   safeAddColumn('Invoices', 'AccountID', 'INTEGER');
+  safeAddColumn('Invoices', 'SubTotal', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('Invoices', 'TotalDiscount', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('Invoices', 'TotalVat', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('Invoices', 'TaxOffice', 'TEXT');
+  safeAddColumn('Invoices', 'TaxNumber', 'TEXT');
+  safeAddColumn('Invoices', 'Address', 'TEXT');
+  safeAddColumn('Invoices', 'Phone', 'TEXT');
+  safeAddColumn('Invoices', 'WaybillNo', 'TEXT');
+  safeAddColumn('Invoices', 'Carrier', 'TEXT');
+  safeAddColumn('Invoices', 'PlateNo', 'TEXT');
+  safeAddColumn('Invoices', 'InternalNote', 'TEXT');
+  safeAddColumn('Invoices', 'ShipDate', 'TEXT');
+  safeAddColumn('Invoices', 'PaymentDays', 'INTEGER');
+  safeAddColumn('Invoices', 'IsOpen', 'INTEGER NOT NULL DEFAULT 1');
+  safeAddColumn('InvoiceItems', 'VatRate', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('InvoiceItems', 'VatType', "TEXT NOT NULL DEFAULT 'Hariç'");
+  safeAddColumn('InvoiceItems', 'Disc1', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('InvoiceItems', 'Disc2', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('InvoiceItems', 'Disc3', 'REAL NOT NULL DEFAULT 0');
+  safeAddColumn('InvoiceItems', 'RowTotal', 'REAL NOT NULL DEFAULT 0');
   safeAddColumn('AccountTransactions', 'AccountID', 'INTEGER');
 
   // ── Seed data ──────────────────────────────────────────────

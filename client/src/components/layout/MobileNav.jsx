@@ -10,7 +10,7 @@ const links = [
     { to: '/invoices', icon: ClipboardList, label: 'Faturalar' },
     { to: '/accounts', icon: Users, label: 'Cariler' },
     { to: '/low-stock', icon: AlertTriangle, label: 'Min Stock' },
-    { to: '/orders', icon: ShoppingBag, label: 'Siparişler' },
+    // { to: '/orders', icon: ShoppingBag, label: 'Siparişler' },
 ];
 
 export default function MobileNav() {

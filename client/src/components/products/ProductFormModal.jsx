@@ -15,6 +15,7 @@ const emptyForm = {
     SalePrice: '',
     Stock: '',
     ImageURL: '',
+    ShowInPos: true,
 };
 
 export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduct, initialCategory = 'Hot Drinks' }) {
@@ -38,6 +39,7 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
                 SalePrice: String(editProduct.SalePrice || ''),
                 Stock: String(editProduct.Stock || ''),
                 ImageURL: editProduct.ImageURL || '',
+                ShowInPos: editProduct.ShowInPos !== undefined ? !!editProduct.ShowInPos : true,
             });
         } else {
             setForm({
@@ -105,6 +107,7 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
             CostPrice: Number(form.CostPrice) || 0,
             SalePrice: Number(form.SalePrice) || 0,
             Stock: Number(form.Stock) || 0,
+            ShowInPos: form.ShowInPos ? 1 : 0,
         });
         onClose();
     };
@@ -316,6 +319,19 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
                                         placeholder="0"
                                         className="glass-input w-full"
                                     />
+                                </div>
+
+                                {/* Show in POS */}
+                                <div className="flex items-center gap-3">
+                                    <label className="text-sm font-medium text-text-primary cursor-pointer flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.ShowInPos}
+                                            onChange={(e) => handleChange('ShowInPos', e.target.checked)}
+                                            className="w-4 h-4 rounded border-glass-border bg-black/20 text-cyan-accent focus:ring-cyan-accent/50 focus:ring-1"
+                                        />
+                                        POS Ekranında Göster
+                                    </label>
                                 </div>
 
                                 {/* Submit */}

@@ -8,7 +8,7 @@ const router = Router();
 // POST /api/sales — create a sale with items (transaction)
 router.post('/', async (req, res) => {
     try {
-        const { items, paymentMethod, tax, discount, courierID } = req.body;
+        const { items, paymentMethod, tax, discount, serviceFee, courierID } = req.body;
         const db = getDb();
         if (!db) {
             if (process.env.USE_MOCK_DATA === 'true') {
@@ -19,8 +19,8 @@ router.post('/', async (req, res) => {
         }
 
         const insertSale = db.prepare(
-            `INSERT INTO Sales (TotalAmount, Tax, Discount, PaymentMethod, CourierID)
-             VALUES (?, ?, ?, ?, ?)`
+            `INSERT INTO Sales (TotalAmount, Tax, Discount, ServiceFee, PaymentMethod, CourierID)
+             VALUES (?, ?, ?, ?, ?, ?)`
         );
         const insertItem = db.prepare(
             `INSERT INTO SaleItems (SaleID, ProductID, Qty, UnitPrice)
@@ -67,8 +67,8 @@ router.post('/', async (req, res) => {
                 return { ...i, unitPrice: finalPrice };
             });
 
-            const totalAmount = calculatedTotal;
-            const saleInfo = insertSale.run(totalAmount, tax || 0, discount || 0, paymentMethod || 'Cash', courierID || null);
+            const totalAmount = calculatedTotal + (serviceFee || 0) - (discount || 0);
+            const saleInfo = insertSale.run(totalAmount, tax || 0, discount || 0, serviceFee || 0, paymentMethod || 'Cash', courierID || null);
             const saleID = saleInfo.lastInsertRowid;
 
             for (const item of pricedItems) {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePosStore } from '../store/posStore';
 import { useAccountStore } from '../store/accountStore';
 import api from '../lib/api';
@@ -15,9 +16,13 @@ function fmtMoney(v) {
 
 // ── Main Page Component (Acts as a container for List vs Form) ──
 export default function InvoicesPage() {
+    const navigate = useNavigate();
     const [view, setView] = useState('list'); // 'list' | 'form'
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState('Tümü');
 
     const fetchInvoices = async () => {
         setLoading(true);
@@ -55,93 +60,118 @@ export default function InvoicesPage() {
         );
     }
 
+    const filteredInvoices = invoices.filter(inv => {
+        const matchesSearch = (inv.InvoiceNo?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+            (inv.Counterparty?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+        const matchesType = filterType === 'Tümü' || inv.Type === filterType;
+        return matchesSearch && matchesType;
+    });
+
     // ── LIST VIEW ──
     return (
-        <div className="flex flex-col gap-5 h-full">
+        <div className="flex flex-col gap-4 h-[calc(100vh-2rem)] w-full">
             {/* Header Ribbon */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 shrink-0">
                 <div className="flex items-center justify-between">
                     <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
                         <FileText className="text-cyan-accent" />
                         Faturalar / İrsaliyeler
                     </h1>
-                    <span className="badge badge-cyan">{invoices.length} Kayıt</span>
+                    <span className="badge badge-cyan">{filteredInvoices.length} Kayıt</span>
                 </div>
 
-                <div className="flex items-center gap-2 glass-card p-2 rounded-xl border border-white/5 w-fit">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 glass-card p-3 rounded-2xl border border-white/5">
                     <button
                         onClick={() => setView('form')}
-                        className="flex flex-col items-center gap-1 p-3 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer"
+                        className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl shadow-lg border-0 shrink-0 cursor-pointer"
                     >
-                        <div className="w-10 h-10 rounded-full bg-cyan-accent/20 flex items-center justify-center text-cyan-accent group-hover:bg-cyan-accent group-hover:text-bg-dark transition-colors">
-                            <Plus size={24} />
-                        </div>
-                        <span className="text-xs font-semibold text-text-primary">Yeni Fatura</span>
+                        <Plus size={18} /> Yeni Oluştur
                     </button>
-                    <div className="w-px h-12 bg-white/10 mx-2" />
-                    <button className="flex flex-col items-center gap-1 p-3 rounded-lg hover:bg-white/5 transition-colors cursor-pointer text-text-muted hover:text-text-primary">
-                        <ListFilter size={24} />
-                        <span className="text-xs font-semibold">Filtrele</span>
-                    </button>
+
+                    <div className="w-full md:w-px h-px md:h-8 bg-white/10 shrink-0" />
+
+                    <div className="flex-1 flex flex-col md:flex-row items-center gap-3 w-full">
+                        <input
+                            type="text"
+                            placeholder="Belge No veya Cari ara..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="glass-card-static rounded-xl text-sm w-full outline-none px-4 py-2.5 focus:border-cyan-accent/50 transition-colors"
+                        />
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                            className="glass-card-static rounded-xl text-sm w-full md:w-48 outline-none px-4 py-2.5 cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M7%2010L12%2015L17%2010%22%20stroke%3D%22%239ca3af%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:right_12px_center] pr-10"
+                        >
+                            <option value="Tümü">Tümü</option>
+                            <option value="Alış Faturası">Alış Faturası</option>
+                            <option value="Satış Faturası">Satış Faturası</option>
+                            <option value="Alış İade">Alış İade</option>
+                            <option value="Satış İade">Satış İade</option>
+                            <option value="İrsaliye">İrsaliye</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
             {/* Invoices Table */}
-            <div className="glass-card p-4 rounded-2xl flex-1 overflow-auto">
-                {loading ? (
-                    <div className="text-center text-text-muted py-10">Yükleniyor…</div>
-                ) : invoices.length === 0 ? (
-                    <div className="text-center text-text-muted py-10">Henüz kayıt yok</div>
-                ) : (
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left text-text-muted border-b border-white/5">
-                                <th className="pb-2 pr-3">Tarih</th>
-                                <th className="pb-2 pr-3">No</th>
-                                <th className="pb-2 pr-3">Tür</th>
-                                <th className="pb-2 pr-3">Cari</th>
-                                <th className="pb-2 pr-3">İçerik</th>
-                                <th className="pb-2 pr-3 text-right">Tutar</th>
-                                <th className="pb-2 pr-3 text-right"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {invoices.map((inv) => (
-                                <tr key={inv.ID} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                                    <td className="py-3 pr-3 text-text-muted whitespace-nowrap">
-                                        {inv.CreatedAt ? new Date(inv.CreatedAt.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                                    </td>
-                                    <td className="py-3 pr-3 font-mono text-cyan-accent/90">
-                                        {inv.InvoiceNo || `#${inv.ID}`}
-                                    </td>
-                                    <td className="py-3 pr-3">
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold
-                                            ${inv.Type === 'İrsaliye' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                                            {inv.Type}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 pr-3 text-text-primary">
-                                        <div className="flex items-center gap-1">
-                                            <User size={12} className="text-text-muted" />
-                                            {inv.Counterparty}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 pr-3 text-text-muted text-xs max-w-[200px] xl:max-w-[400px] truncate">
-                                        {inv.ItemsSummary || '—'}
-                                    </td>
-                                    <td className="py-3 pr-3 text-right font-bold text-red-400 whitespace-nowrap">
-                                        {fmtMoney(inv.TotalAmount)}
-                                    </td>
-                                    <td className="py-3 text-right">
-                                        <button onClick={() => handleDelete(inv.ID)} className="text-text-muted hover:text-red-400 p-1 cursor-pointer">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </td>
+            <div className="glass-card rounded-2xl flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-auto bg-bg-dark/20 relative custom-scrollbar">
+                    {loading ? (
+                        <div className="text-center text-text-muted py-10">Yükleniyor…</div>
+                    ) : filteredInvoices.length === 0 ? (
+                        <div className="text-center text-text-muted py-10">Henüz kayıt yok</div>
+                    ) : (
+                        <table className="w-full text-sm text-left whitespace-nowrap min-w-max">
+                            <thead className="sticky top-0 bg-[#161b26] text-text-muted shadow-sm shadow-[#0a0e1a]/50 z-10 select-none">
+                                <tr>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 pl-4 w-32">Tarih</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-32">Belge No</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-32">Tür</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-48">Cari</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5">İçerik</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 text-right w-32">Genel Toplam</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-white/5 w-12 text-center">İşlem</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
+                            </thead>
+                            <tbody>
+                                {filteredInvoices.map((inv) => (
+                                    <tr key={inv.ID} onClick={() => navigate(`/invoices/${inv.ID}`)} className="border-b border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer group">
+                                        <td className="p-3 pl-4 border-r border-white/5 text-text-muted whitespace-nowrap">
+                                            {inv.CreatedAt ? new Date(inv.CreatedAt.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </td>
+                                        <td className="p-3 border-r border-white/5 font-mono text-cyan-accent/90">
+                                            {inv.InvoiceNo || `#${inv.ID}`}
+                                        </td>
+                                        <td className="p-3 border-r border-white/5">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold
+                                                ${inv.Type === 'İrsaliye' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                {inv.Type}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 border-r border-white/5 text-text-primary">
+                                            <div className="flex items-center gap-1.5">
+                                                <User size={14} className="text-text-muted" />
+                                                <span className="truncate max-w-[150px]">{inv.Counterparty}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 border-r border-white/5 text-text-muted text-xs">
+                                            <span className="truncate inline-block max-w-[200px] xl:max-w-[400px]">{inv.ItemsSummary || '—'}</span>
+                                        </td>
+                                        <td className="p-3 border-r border-white/5 text-right font-bold text-red-400 whitespace-nowrap bg-red-500/[0.02]">
+                                            {fmtMoney(inv.TotalAmount)}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                            <button onClick={(e) => { e.stopPropagation(); handleDelete(inv.ID); }} className="text-text-muted hover:text-red-400 p-1.5 cursor-pointer rounded-lg hover:bg-white/5 transition-colors opacity-50 group-hover:opacity-100">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -234,7 +264,11 @@ function InvoiceForm({ onClose }) {
             const existingIdx = prev.findIndex(i => i.ProductID === product.ID);
             if (existingIdx >= 0) {
                 const updated = [...prev];
-                updated[existingIdx].Qty = Number(updated[existingIdx].Qty) + 1;
+                // Update object immutably to prevent duplicate increments in React StrictMode
+                updated[existingIdx] = {
+                    ...updated[existingIdx],
+                    Qty: Number(updated[existingIdx].Qty) + 1
+                };
                 return updated;
             }
             return [...prev, {
@@ -312,26 +346,40 @@ function InvoiceForm({ onClose }) {
 
         setSubmitting(true);
 
-        // Combine notes and transport info into description since backend currently expects a single string
         let combinedDesc = `${type} - Vade: ${paymentDays} gün`;
-        if (carrier || plateNo || waybillNo) {
-            combinedDesc += ` | Sevk: [İrs: ${waybillNo || '-'} Taşıyıcı: ${carrier || '-'} Plaka: ${plateNo || '-'}]`;
-        }
-        if (internalNote) {
-            combinedDesc += ` | Not: ${internalNote}`;
-        }
 
         try {
             await api.post('/invoices', {
                 InvoiceNo: invoiceNo || docNo || null,
                 Type: type.includes('İrsaliye') ? 'İrsaliye' : type,
                 Counterparty: counterparty,
-                Description: combinedDesc,
+                Description: combinedDesc, // Keep a small descriptive string for backwards compatibility or general list view
                 PaymentMethod: paymentMethod, // Nakit/Kart
+                ShipDate: shipDate,
+                PaymentDays: Number(paymentDays) || 0,
+                IsOpen: isOpen,
+                TaxOffice: taxOffice,
+                TaxNumber: taxNumber,
+                Address: address,
+                Phone: phone,
+                WaybillNo: waybillNo,
+                Carrier: carrier,
+                PlateNo: plateNo,
+                InternalNote: internalNote,
+                GrandTotal: grandTotal,
+                SubTotal: totalSubtotal,
+                TotalDiscount: totalDiscount,
+                TotalVat: totalVat,
                 items: processedItems.map(i => ({
                     ProductID: i.ProductID,
                     Qty: i.Qty,
-                    UnitPrice: i.finalUnitPrice // backend qty * price alıyor
+                    UnitPrice: i.UnitPrice, // Send raw UnitPrice instead of final net price
+                    VatRate: i.VatRate,
+                    VatType: i.VatType,
+                    Disc1: i.Disc1,
+                    Disc2: i.Disc2,
+                    Disc3: i.Disc3,
+                    RowTotal: i.rowTotal
                 }))
             });
 

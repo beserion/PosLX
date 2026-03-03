@@ -298,24 +298,7 @@ select option {
   body,
   #root {
     background: white !important;
+    color: black !important;
   }
 
-  body>*:not(.receipt-print-area) {
-    display: none !important;
-  }
-
-  .receipt-print-area {
-    display: block !important;
-    background: white !important;
-    color: #000 !important;
-    font-family: 'Courier New', monospace !important;
-    width: 80mm !important;
-    margin: 0 !important;
-    padding: 4mm !important;
-  }
-
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
 }

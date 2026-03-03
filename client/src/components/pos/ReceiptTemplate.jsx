@@ -11,7 +11,11 @@ export default function ReceiptTemplate({ sale }) {
         subtotal = 0,
         tax = 0,
         total = 0,
+        discount = 0,
+        serviceFee = 0,
+        serviceFeeCount = 1, // Optional: if added later
         paymentMethod = 'Cash',
+        taxRate = 8,
         date = new Date(),
         storeName = 'PosLX Store',
         storeAddress = 'İstanbul, Turkey',
@@ -84,9 +88,21 @@ export default function ReceiptTemplate({ sale }) {
                     <span>₺{subtotal.toFixed(2)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>KDV (%8):</span>
+                    <span>KDV (%{taxRate}):</span>
                     <span>₺{tax.toFixed(2)}</span>
                 </div>
+                {serviceFee > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Servis Ücreti:</span>
+                        <span>+₺{serviceFee.toFixed(2)}</span>
+                    </div>
+                )}
+                {discount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>İndirim:</span>
+                        <span>-₺{discount.toFixed(2)}</span>
+                    </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 14, marginTop: 4 }}>
                     <span>TOPLAM:</span>
                     <span>₺{total.toFixed(2)}</span>

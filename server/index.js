@@ -21,6 +21,7 @@ import courierSettlementsRouter from './routes/courierSettlements.js';
 import specialPricesRouter from './routes/specialPrices.js';
 import staffRouter from './routes/staff.js';
 import cancellationsRouter from './routes/cancellations.js';
+import printRouter from './routes/print.js';
 import { setupCourierSocket } from './sockets/courierSocket.js';
 import { getDb } from './config/db.js';
 import { startTunnel, stopTunnel } from './tunnel/tunnelManager.js';
@@ -60,6 +61,7 @@ app.use('/api/courier-settlements', courierSettlementsRouter);
 app.use('/api/special-prices', specialPricesRouter);
 app.use('/api/staff', staffRouter);
 app.use('/api/cancellations', cancellationsRouter);
+app.use('/api/print', printRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

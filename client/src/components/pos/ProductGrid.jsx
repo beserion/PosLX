@@ -16,8 +16,9 @@ export default function ProductGrid() {
     const addToCart = usePosStore((s) => s.addToCart);
     const [activeCategory, setActiveCategory] = useState('All');
 
-    const categories = ['All', ...new Set(products.map((p) => p.Category))];
-    const filtered = activeCategory === 'All' ? products : products.filter((p) => p.Category === activeCategory);
+    const posProducts = products.filter(p => p.ShowInPos !== 0 && p.ShowInPos !== false);
+    const categories = ['All', ...new Set(posProducts.map((p) => p.Category))];
+    const filtered = activeCategory === 'All' ? posProducts : posProducts.filter((p) => p.Category === activeCategory);
 
     return (
         <div className="flex flex-col gap-4 h-full">
