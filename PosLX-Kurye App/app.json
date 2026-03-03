@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "PosLX Courier",
+    "slug": "poslx-courier",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e1a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.poslx.courier",
+      "infoPlist": {
+        "NSCameraUsageDescription": "QR kod okutarak giriş yapabilmeniz için kamera erişimi gereklidir.",
+        "NSLocationWhenInUseUsageDescription": "Konum bilginizi POS sistemine iletmek için konum erişimi gereklidir.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Teslimat sırasında konumunuzu takip edebilmek için arka plan konum erişimi gereklidir.",
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0e1a"
+      },
+      "package": "com.poslx.courier",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QR kod okutarak giriş yapabilmeniz için kamera erişimi gereklidir."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Teslimat sırasında konumunuzu takip edebilmek için konum erişimi gereklidir.",
+          "locationAlwaysPermission": "Arka planda konum takibi için iz gereklidir.",
+          "locationWhenInUsePermission": "Konum bilginizi POS sistemine iletmek için konum erişimi gereklidir.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "./plugins/withRemoveBundleCompression.js"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4cf95139-c801-4842-91ae-4efc70fe659c"
+      }
+    }
+  }
+}

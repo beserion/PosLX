@@ -1,0 +1,59 @@
+﻿node.exe : Ôİà eas-cli@
+18.0.6 is now available
+.
+At line:1 char:1
++ & "C:\Program Files\n
+odejs/node.exe" "C:\Pro
+gram Files\nodejs/node_
+mo ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Ôİà eas-cli@1   
+ 8.0.6 is now avail    
+able.:String) [],     R
+emoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+To upgrade, run:
+npm install -g eas-cli
+Proceeding with outdate
+d version.
+
+(node:7652) [DEP0040] D
+eprecationWarning: The 
+`punycode` module is de
+precated. Please use a 
+userland alternative in
+stead.
+(Use `node --trace-depr
+ecation ...` to show wh
+ere the warning was cre
+ated)
+- Fetching the buildÔÇĞ
+\ Fetching the buildÔÇĞ
+| Fetching the buildÔÇĞ
+Ô£ö Found a matching bu
+ild for the project @ri
+zabey/poslx-courier
+
+ID                       9a0fee79-4822-48c1-92a6-65f12b8f5692
+Platform                 Android
+Status                   errored
+Profile                  preview
+Distribution             internal
+SDK Version              54.0.0
+Version                  1.0.0
+Version code             1
+Commit                   a5da68c933f87df6386b009239ee21473224f01a
+Logs                     https://expo.dev/accounts/rizabey/projects/poslx-courier/builds/9a0fee79-4822-48c1-92a6-65f12b8f5692
+Application Archive URL  null
+Build Artifacts URL      null
+Started at               04.03.2026 00:22:01
+Finished at              04.03.2026 00:24:40
+Started by               rizabey

@@ -1,0 +1,112 @@
+====================================================================
+POSLX KURYE MOBİL UYGULAMASI - API DÖKÜMANTASYONU VE MASTER PROMPT
+====================================================================
+
+Bu belge, PosLX sistemiyle entegre çalışacak Kurye Mobil Uygulaması için hem teknik API detaylarını hem de yapay zekaya (Cursor, Claude, ChatGPT vb.) bu uygulamayı sıfırdan yazdırmak için kullanabileceğiniz Master Prompt'u (Yönerge) içerir.
+
+
+--- BÖLÜM 1: API VE ENTEGRASYON DOKÜMANTASYONU ---
+
+## 1. Başlangıç: QR Kod ile Oturum Açma
+POS sisteminden her kurye için üretilen QR kod uygulamadan okutulur. QR kod içeriği bir JSON string'idir.
+
+**QR Kod İçeriği (Örnek):**
+{
+  "url": "https://api.poslx.example.com",
+  "token": "d3b07384d11... (Bearer Token)",
+  "courierId": 5
+}
+
+## 2. Authentication (Kimlik Doğrulama)
+Tüm HTTP (REST) isteklerinde Header bilgisi aşağıdaki gibi gönderilmelidir:
+Authorization: Bearer <TOKEN_DEĞERİ>
+Content-Type: application/json
+
+## 3. REST API Uç Noktaları (Endpoints)
+Base URL, QR koddan okunan "url" değeridir.
+
+### 3.1. Kurye Konumunu Bildirme
+- URL: POST /api/couriers/location
+- Amaç: Kuryenin anlık koordinatlarını (örneğin her 10 saniyede bir veya arka planda hareket ettikçe) backend'e göndermek.
+- Request Body JSON:
+{
+  "courierId": 5,
+  "latitude": 41.008234,
+  "longitude": 28.978432
+}
+- Response: { "success": true }
+
+### 3.2. Kurye Durumunu Güncelleme
+- URL: PUT /api/couriers/5/status  (5 değeri courierId'dir)
+- Amaç: Kuryenin durumunu manuel değiştirmek. (Uygulama arka planda kapandığında veya bağlantı koptuğunda /disconnect/, sunucu durumu otomatik "Offline"a çekecektir).
+- Request Body JSON:
+{
+  "status": "Idle"  // "Idle", "Delivering" veya "Offline" olabilir
+}
+
+### 3.3. Kurye İstatistiklerini Alma
+- URL: GET /api/couriers/5/stats
+- Amaç: Kuryenin kendi performans ekranı için günlük/haftalık/aylık paket teslimat sayılarını ve km verilerini çekmek.
+
+## 4. WebSocket (Socket.io) İletişimi (Gerçek Zamanlı Veri)
+WebSocket bağlantısı, paket atandığında anlık bildirim almak için gereklidir. Kurye uygulamayı kullanırken açık tutulmalıdır. Eğer uygulama kapatılır ve soket koparsa, Backend kuryeyi otomatik olarak haritada "Offline" yapar.
+
+Bağlantı URLsi: {url}/couriers
+Auth: connection sırasında { auth: { token: "<TOKEN>" } } iletilir.
+
+### 4.1. Odaya Kayıt (Bağlanır bağlanmaz gönderilecek)
+- Emit: "courier:register"
+- Payload: { "courierId": 5 }
+
+### 4.2. Yeni Sipariş Geldiğinde (Cihazın Dinleyeceği Event)
+- Listen (On): "new_deliveries"
+- Gelen Veri: Dizi içerinde atanan sipariş(ler)in datası. İçerisinde saleId, items, tutar, adres ve müşteri adı gibi bilgiler bulunur.
+Örnek:
+[{
+   "saleId": 5001,
+   "customer": { "name": "Ahmet", "address": "Kadıköy/İstanbul", "location": { "lat": 40.9, "lng": 29.0 } },
+   "items": [ { "name": "Kahve", "qty": 1 } ]
+}]
+
+### 4.3. Teslimatı Tamamlama
+- Emit: "delivery:complete"
+- Amaç: Kurye siparişi kestiğinde/teslim ettiğinde backend'e bildirmek için kullanılır.
+- Payload: { "courierId": 5, "saleId": 5001 }
+
+
+
+====================================================================
+--- BÖLÜM 2: MASTER PROMPT (UYGULAMA TASARLATICISI) ---
+====================================================================
+
+(Aşağıdaki metni kopyalayıp tercih ettiğiniz yapay zeka aracına yapıştırarak geliştirme sürecini başlatabilirsiniz.)
+
+--- KOPYALAMAYA BURADAN BAŞLA ---
+
+Sen uzman bir Mobil Uygulama Geliştiricisisin (React Native ve Expo kullanarak). Benim için "PosLX Courier" adında bir kurye uygulaması geliştireceksin. Amacım, restoran ve kafelerde sipariş taşıyan kuryelerin, ana POS sisteminden gelen siparişleri görüp kabul edebilecekleri ve canlı konumlarını POS sistemine iletebilecekleri, şık ve modern (dark theme ağırlıklı, cam/glassmorphism efektli) bir uygulama yazdırmak.
+
+Altyapı gereksinimleri ve yazman gereken kodlar şu bileşenlerden oluşmalıdır:
+
+1. GİRİŞ (AUTH) EKRANI:
+- Kullanıcı adı veya şifre olmayacak. Sadece bir "QR Kod Okut" butonu olacak. (expo-camera kullanılabilir).
+- Kurye, POS ekranındaki kendine ait QR kodunu okutacak. Okunan QR kodu şu JSON'u verecek: {"url": "https://api...", "token": "...", "courierId": 5}
+- Bu bilgiler cihazın yerel hafızasına (AsyncStorage güvenli şekilde) kaydedilecek ve uygulama bir daha açıldığında şifre sormadan otomatik giriş yapacak. Uygulama içerisinden çıkış yapana kadar saklanacak.
+- Tüm HTTP isteklerinin Header'ına Authorization: Bearer <token> eklenecek.
+
+2. ANA EKRAN VE SİPARİŞLER (SOCKET.IO):
+- socket.io-client eklenecek ve auth objesiyle {url}/couriers adresine bağlanılacak.
+- Bağlanır bağlanmaz "courier:register" eventiyle courierId gönderilecek.
+- "new_deliveries" eventi dinlenecek. POS'tan bir sipariş atandığında ekrana anında şık bir bildirim kartı veya Modal olarak düşecek. Kartın içinde Müşteri Adresi, Tutar ve Sipariş İçeriği (items) yer alacak.
+- Sipariş kartında "Teslim Edildi" butonu olacak. Buna basıldığında "delivery:complete" eventi sunucuya gönderilecek ve sipariş ekrandan kalkacak.
+- Kurye online ise durumu PUT /api/couriers/{id}/status adresine JSON {"status": "Idle"} formatında yollanacak.
+
+3. ARKA PLAN KONUM TAKİBİ (LIVE TRACKING):
+- Kurye uygulamada giriş yaptıktan sonra, expo-location kullanılarak cihazın konumu (enlem, boylam) alınmaya başlanacak.
+- Sadece kurye aktif durumdayken, her 10 saniyede bir veya 20 metre hareket ettikçe arka planda POST /api/couriers/location adresine {"courierId": 5, "latitude": 41.x, "longitude": 28.x} JSON datası postlanacak.
+
+4. İSTATİSTİKLER EKRANI (PROFİL):
+- Ekranın bir sekmesinde kuryenin günlük ve haftalık taşıdığı paket sayısını, tahmini kat ettiği km bilgisini GET /api/couriers/{id}/stats adresinden çekerek chart veya badge bileşenleriyle şık, modern bir tasarımda göstereceksin.
+
+Lütfen bana projenin kurulum komutlarını (npx create-expo-app vb. dahil), klasör yapısını (örneğin src/screens, src/services, src/store vb.), gerekli paketleri (zustand, axios, socket.io-client, react-navigation, expo-location vb.) ve bu 4 ana gereksinimi karşılayan tam, kopyalanabilir ve modern görünümlü React Native kodlarını yaz. Çıktıların olabildiğince eksiksiz, temiz ve parçalara ayrılmış profesyonel kod kalitesinde olsun.
+
+--- KOPYALAMAYI BURADA BİTİR ---
