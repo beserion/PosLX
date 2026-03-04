@@ -4,6 +4,7 @@ import api from '../lib/api';
 export const useTunnelStore = create((set) => ({
     connected: false,
     url: null,
+    lanUrl: null,
     token: null,
     loading: true,
     error: null,
@@ -23,6 +24,7 @@ export const useTunnelStore = create((set) => ({
             set({
                 connected: data.connected,
                 url: data.url,
+                lanUrl: data.lanUrl,
                 token: data.token,
                 loading: false,
                 error: null,

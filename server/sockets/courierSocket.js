@@ -74,8 +74,21 @@ export function setupCourierSocket(io) {
             // Remove from registry
             for (const [courierId, socketId] of courierSockets.entries()) {
                 if (socketId === socket.id) {
+                    try {
+                        const db = getDb();
+                        if (db) {
+                            db.prepare('UPDATE Couriers SET Status = ? WHERE ID = ?').run('Offline', courierId);
+                        }
+                        courierNsp.emit('status:changed', {
+                            courierID: Number(courierId),
+                            status: 'Offline',
+                        });
+                    } catch (err) {
+                        console.error('Error setting courier offline:', err.message);
+                    }
+
                     courierSockets.delete(courierId);
-                    console.log(`🔌 Courier ${courierId} unregistered.`);
+                    console.log(`🔌 Courier ${courierId} unregistered and marked Offline.`);
                     break;
                 }
             }

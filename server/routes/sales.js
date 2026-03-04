@@ -88,32 +88,54 @@ router.post('/', async (req, res) => {
         // POSLx-Kurye (Courier APK) Delivery Assignment Socket Dispatch
         // -------------------------------------------------------------
         if (courierID) {
-            const getCourier = db.prepare('SELECT Name, Phone FROM Couriers WHERE ID = ?').get(courierID);
+            // Map table ID (Int) to String for map lookup
+            const targetSocketId = courierSockets.get(courierID) || courierSockets.get(String(courierID)) || courierSockets.get(Number(courierID));
 
-            // Map table ID (Int) to String for map lookup, if required,
-            // or just check with loosely equals inside the payload.
-            const targetSocketId = courierSockets.get(courierID) || courierSockets.get(String(courierID));
+            // Fetch sale items with product names
+            const saleItems = db.prepare(`
+                SELECT p.Name as name, si.Qty as qty, si.UnitPrice as price
+                FROM SaleItems si
+                JOIN Products p ON si.ProductID = p.ID
+                WHERE si.SaleID = ?
+            `).all(saleID);
+
+            // Fetch customer info if AccountID exists
+            const saleRow = db.prepare('SELECT AccountID FROM Sales WHERE ID = ?').get(saleID);
+            let customerInfo = { name: 'Müşteri', address: '', phone: '' };
+            if (saleRow?.AccountID) {
+                const account = db.prepare('SELECT Name, Address, Phone FROM Accounts WHERE ID = ?').get(saleRow.AccountID);
+                if (account) {
+                    customerInfo = {
+                        name: account.Name || 'Müşteri',
+                        address: account.Address || '',
+                        phone: account.Phone || '',
+                    };
+                }
+            }
+
+            const deliveryPayload = {
+                saleId: Number(saleID),
+                deliveryId: Number(saleID),
+                totalAmount: totalAmount,
+                paymentMethod: paymentMethod || 'Cash',
+                customer: customerInfo,
+                items: saleItems,
+                assignedAt: new Date().toISOString(),
+            };
 
             if (targetSocketId) {
-                // Determine courier namespace
                 const courierNsp = io.of('/couriers');
-
-                // Construct the exact payload format the React Native APK expects (`activeDelivery`)
-                const deliveryPayload = {
-                    id: saleID,
-                    saleId: saleID,
-                    status: 'started',
-                    total: totalAmount,
-                    customer: 'Müşteri', // or pull from AccountID if available
-                    timestamp: new Date().toISOString()
-                };
-
-                // Send private event to that specific courier socket
                 courierNsp.to(targetSocketId).emit('delivery_started', deliveryPayload);
                 console.log(`📦 Assigned Sale #${saleID} to Courier ID: ${courierID} (Socket: ${targetSocketId})`);
             } else {
-                console.warn(`⚠️ Courier ID ${courierID} is not currently connected via WebSockets.`);
+                // Fallback: broadcast to all couriers namespace — courier will filter by their ID
+                console.warn(`⚠️ Courier ID ${courierID} socket not found, broadcasting to namespace`);
+                io.of('/couriers').emit('delivery_started', deliveryPayload);
             }
+
+            // Update courier status to Delivering
+            db.prepare('UPDATE Couriers SET Status = ? WHERE ID = ?').run('Delivering', courierID);
+            io.of('/couriers').emit('status:changed', { courierID: Number(courierID), status: 'Delivering' });
         }
 
         res.json({ success: true, saleID });
@@ -148,6 +170,32 @@ router.get('/summary', async (req, res) => {
     }
 });
 
+// GET /api/sales/unassigned — get unassigned orders
+router.get('/unassigned', async (req, res) => {
+    try {
+        const db = getDb();
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const rows = db.prepare(`
+            SELECT 
+                s.ID, s.TotalAmount, s.PaymentMethod, s.CreatedAt, s.CourierID,
+            a.Name as CustomerName, a.Address, a.Phone,
+            GROUP_CONCAT(p.Name || ' (' || si.Qty || ')', ', ') as ItemsSummary
+            FROM Sales s
+            LEFT JOIN Accounts a ON s.AccountID = a.ID
+            LEFT JOIN SaleItems si ON si.SaleID = s.ID
+            LEFT JOIN Products p ON si.ProductID = p.ID
+            WHERE s.CourierID IS NULL 
+            GROUP BY s.ID
+            ORDER BY s.CreatedAt DESC
+            `).all();
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // GET /api/sales/courier-performance — get stats for dashboard
 router.get('/courier-performance', async (req, res) => {
     try {
@@ -157,12 +205,12 @@ router.get('/courier-performance', async (req, res) => {
         const rows = db.prepare(`
             SELECT 
                 c.Name as name,
-                COUNT(s.ID) as orders
+            COUNT(s.ID) as orders
             FROM Couriers c
             LEFT JOIN Sales s ON s.CourierID = c.ID AND date(s.CreatedAt) = date('now')
             GROUP BY c.ID
             ORDER BY orders DESC
-        `).all();
+            `).all();
 
         res.json(rows);
     } catch (err) {

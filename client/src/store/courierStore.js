@@ -11,7 +11,12 @@ export const useCourierStore = create((set) => ({
         set({ loading: true, error: null });
         try {
             const { data } = await api.get('/couriers');
-            set({ couriers: data, loading: false });
+            const standardizedData = data.map(c => ({
+                ...c,
+                lat: c.lat !== undefined ? c.lat : c.Lat,
+                lng: c.lng !== undefined ? c.lng : c.Lng
+            }));
+            set({ couriers: standardizedData, loading: false });
         } catch (err) {
             set({ error: err.response?.data?.error || err.message, loading: false });
         }
@@ -44,6 +49,13 @@ export const useCourierStore = create((set) => ({
         set((state) => ({
             couriers: state.couriers.map((c) =>
                 c.ID === Number(courierID) ? { ...c, Status: status } : c
+            ),
+        })),
+
+    updateLocation: (courierID, lat, lng) =>
+        set((state) => ({
+            couriers: state.couriers.map((c) =>
+                c.ID === Number(courierID) ? { ...c, lat, lng, lastSeen: Date.now() } : c
             ),
         })),
 }));

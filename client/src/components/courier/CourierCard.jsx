@@ -12,13 +12,13 @@ const statusStyle = {
 };
 
 export default function CourierCard({ courier }) {
-    const { url, token } = useTunnelStore();
+    const { url, lanUrl, token } = useTunnelStore();
     const deleteCourier = useCourierStore((s) => s.deleteCourier);
     const [showQr, setShowQr] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const toast = useToast();
 
-    const qrPayload = url && token ? JSON.stringify({ url, token, courierId: courier.ID }) : null;
+    const qrPayload = url && token ? JSON.stringify({ url, lanUrl: lanUrl || null, token, courierId: courier.ID }) : null;
 
     const handleDelete = async () => {
         if (!confirm(`"${courier.Name}" isimli kuryeyi silmek istediğinize emin misiniz?`)) return;
@@ -33,7 +33,10 @@ export default function CourierCard({ courier }) {
     };
 
     return (
-        <div className="glass-card flex flex-col">
+        <div
+            className={`glass-card flex flex-col cursor-pointer transition-all ${showQr ? 'border-cyan-accent/50 box-glow-cyan' : 'hover:border-white/20'}`}
+            onClick={() => qrPayload && setShowQr(!showQr)}
+        >
             <div className="p-4 flex items-center gap-4">
                 {/* Avatar */}
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -66,15 +69,15 @@ export default function CourierCard({ courier }) {
                     <div className="flex items-center gap-1">
                         {qrPayload && (
                             <button
-                                onClick={() => setShowQr(!showQr)}
-                                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-cyan-accent"
+                                onClick={(e) => { e.stopPropagation(); setShowQr(!showQr); }}
+                                className={`p-1.5 rounded-lg transition-colors ${showQr ? 'bg-cyan-accent/20 text-cyan-accent' : 'hover:bg-white/5 text-text-muted hover:text-cyan-accent'}`}
                                 title="QR Göster"
                             >
                                 <QrCode size={16} />
                             </button>
                         )}
                         <button
-                            onClick={handleDelete}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                             disabled={isDeleting}
                             className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-text-muted hover:text-danger"
                             title="Kuryeyi Sil"

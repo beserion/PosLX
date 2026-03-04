@@ -1,8 +1,25 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
 import { getTunnelStatus } from '../tunnel/tunnelManager.js';
+import { networkInterfaces } from 'os';
 
 const router = Router();
+
+/**
+ * Get the local LAN IP address of the server.
+ */
+function getLocalIP() {
+    const nets = networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+            // Skip internal (loopback) and non-IPv4 addresses
+            if (net.family === 'IPv4' && !net.internal) {
+                return net.address;
+            }
+        }
+    }
+    return null;
+}
 
 // GET /api/tunnel/status — tunnel health
 router.get('/status', (_req, res) => {
@@ -14,7 +31,7 @@ router.get('/status', (_req, res) => {
     }
 });
 
-// GET /api/tunnel/qr-data — data for QR code (public URL + token)
+// GET /api/tunnel/qr-data — data for QR code (public URL + LAN URL + token)
 router.get('/qr-data', (_req, res) => {
     try {
         const db = getDb();
@@ -23,8 +40,13 @@ router.get('/qr-data', (_req, res) => {
         const status = getTunnelStatus();
         const tokenRow = db.prepare("SELECT value FROM system_settings WHERE key = 'courier_api_token'").get();
 
+        const localIP = getLocalIP();
+        const PORT = process.env.PORT || 3001;
+        const lanUrl = localIP ? `http://${localIP}:${PORT}` : null;
+
         res.json({
             url: status.url || null,
+            lanUrl: lanUrl,
             token: tokenRow?.value || null,
             connected: status.connected,
         });
@@ -34,3 +56,4 @@ router.get('/qr-data', (_req, res) => {
 });
 
 export default router;
+

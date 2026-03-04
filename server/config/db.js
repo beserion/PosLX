@@ -274,6 +274,19 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS IX_CourierSettlements_CourierID
       ON CourierSettlements(CourierID);
 
+    CREATE TABLE IF NOT EXISTS CourierDailyStats (
+      ID                INTEGER PRIMARY KEY AUTOINCREMENT,
+      CourierID         INTEGER NOT NULL,
+      Date              TEXT    NOT NULL,
+      TotalDistanceKm   REAL    NOT NULL DEFAULT 0,
+      PackagesDelivered INTEGER NOT NULL DEFAULT 0,
+      CreatedAt         TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (CourierID) REFERENCES Couriers(ID)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS IX_CourierDailyStats_Date_CourierID
+      ON CourierDailyStats(Date, CourierID);
+
     CREATE TABLE IF NOT EXISTS system_settings (
       key   TEXT PRIMARY KEY,
       value TEXT
@@ -334,6 +347,9 @@ function initSchema(db) {
   const safeAddColumn = (table, column, def) => {
     try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`); } catch (_) { /* already exists */ }
   };
+  safeAddColumn('Couriers', 'lat', 'REAL');
+  safeAddColumn('Couriers', 'lng', 'REAL');
+  safeAddColumn('Couriers', 'lastSeen', 'INTEGER');
   safeAddColumn('Products', 'CriticalStock', 'INTEGER NOT NULL DEFAULT 5');
   safeAddColumn('Products', 'ShelfLifeDays', 'INTEGER');
   safeAddColumn('Products', 'CostMethod', "TEXT NOT NULL DEFAULT 'WeightedAvg'");

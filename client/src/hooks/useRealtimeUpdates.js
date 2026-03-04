@@ -12,6 +12,7 @@ export function useRealtimeUpdates() {
     const addRealtimeSale = useDashboardStore((s) => s.addRealtimeSale);
     const setConnected = useDashboardStore((s) => s.setConnected);
     const updateStatus = useCourierStore((s) => s.updateStatus);
+    const updateLocation = useCourierStore((s) => s.updateLocation);
     const toast = useToast();
 
     useEffect(() => {
@@ -32,6 +33,12 @@ export function useRealtimeUpdates() {
             updateStatus(data.courierID, data.status);
         });
 
+        courierSocket.on('location:update', (data) => {
+            if (data.courierId && data.latitude && data.longitude) {
+                updateLocation(data.courierId, data.latitude, data.longitude);
+            }
+        });
+
         return () => {
             salesSocket.off('sale:new');
             salesSocket.off('connect');
@@ -41,5 +48,5 @@ export function useRealtimeUpdates() {
             salesSocket.disconnect();
             courierSocket.disconnect();
         };
-    }, [addRealtimeSale, setConnected, updateStatus]);
+    }, [addRealtimeSale, setConnected, updateStatus, updateLocation]);
 }
