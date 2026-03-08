@@ -28,7 +28,7 @@ export default function BarcodeInput() {
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder="Scan barcode or type code…"
-                className="glass-input w-full pl-10 pr-4"
+                className="glass-input w-full !pl-8 pr-4"
             />
         </form>
     );

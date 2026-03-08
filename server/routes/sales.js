@@ -33,7 +33,7 @@ router.post('/', async (req, res) => {
                 const reqProd = new sql.Request(transaction);
                 const prodResult = await reqProd
                     .input('productID', sql.Int, i.productID)
-                    .query('SELECT ID, SalePrice FROM Products WHERE ID = @productID');
+                    .query('SELECT ID, SalePrice, Price2 FROM Products WHERE ID = @productID');
                 const prod = prodResult.recordset.length > 0 ? prodResult.recordset[0] : null;
 
                 const reqSpecial = new sql.Request(transaction);
@@ -43,6 +43,7 @@ router.post('/', async (req, res) => {
                         SELECT TOP 1 SpecialPrice
                         FROM SpecialPrices
                         WHERE ProductID = @productID
+                          AND AccountID IS NULL
                           AND IsActive = 1
                           AND (StartDate IS NULL OR CAST(StartDate AS DATE) <= CAST(GETDATE() AS DATE))
                           AND (EndDate   IS NULL OR CAST(EndDate AS DATE)   >= CAST(GETDATE() AS DATE))
@@ -53,11 +54,17 @@ router.post('/', async (req, res) => {
                     `);
                 const sp = spResult.recordset.length > 0 ? spResult.recordset[0] : null;
 
-                const basePrice = prod ? prod.SalePrice : i.unitPrice;
-                const finalPrice =
-                    sp && sp.SpecialPrice !== null && sp.SpecialPrice >= 0
-                        ? sp.SpecialPrice
-                        : basePrice;
+                let finalPrice = i.unitPrice;
+                if (prod) {
+                    finalPrice = prod.SalePrice;
+                    if (sp && sp.SpecialPrice !== null && sp.SpecialPrice >= 0) {
+                        finalPrice = sp.SpecialPrice;
+                    }
+                    if (courierID && prod.Price2 > 0) {
+                        finalPrice = prod.Price2; // Kurye fiyatı her zaman önceliklidir
+                    }
+                }
+                console.log(`Debug Sale item: ID=${i.productID}, prod?=${!!prod}, courierID=${courierID}, SalePrice=${prod?.SalePrice}, Price2=${prod?.Price2}, SpecialPrice=${sp?.SpecialPrice}, finalPrice=${finalPrice}`);
                 const lineTotal = finalPrice * i.qty;
                 calculatedTotal += lineTotal;
                 pricedItems.push({ ...i, unitPrice: finalPrice });

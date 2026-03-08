@@ -263,17 +263,37 @@ export default function CheckoutList({ onClose }) {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-surface-dark border border-glass-border rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+                            className="bg-surface-dark border border-glass-border rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden"
                         >
-                            <div className="p-6 text-center">
-                                <div className="w-16 h-16 rounded-full bg-cyan-accent/20 text-cyan-accent flex items-center justify-center mx-auto mb-4">
-                                    <Truck size={32} />
+                            <div className="p-8 text-center">
+                                <div className="flex items-center justify-center gap-4 mb-6">
+                                    <div className="w-16 h-16 rounded-full bg-cyan-accent/20 text-cyan-accent flex items-center justify-center">
+                                        <Truck size={36} />
+                                    </div>
+                                    <h3 className="text-3xl font-bold text-text-primary">Kurye Onayı</h3>
                                 </div>
-                                <h3 className="text-xl font-bold text-text-primary mb-2">Kurye Onayı</h3>
-                                <p className="text-text-secondary mb-6">
-                                    Bu siparişi kuryeye atamak ve satışı tamamlamak üzeresiniz. Onaylıyor musunuz?
-                                </p>
-                                <div className="flex gap-3 justify-center">
+
+                                <div className="bg-black/30 rounded-2xl p-5 mb-8 text-left max-h-[36rem] overflow-y-auto border border-glass-border">
+                                    <h4 className="text-base font-semibold text-text-muted mb-3 border-b border-glass-border/50 pb-2">Sipariş İçeriği</h4>
+                                    {cart.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center py-2.5 border-b border-glass-border/30 last:border-0">
+                                            <div className="flex flex-col">
+                                                <span className="text-lg font-medium text-text-primary w-64 truncate">{item.Name}</span>
+                                                <span className="text-sm text-text-muted">{item.qty} x ₺{getItemPrice(item).toFixed(2)}</span>
+                                            </div>
+                                            <span className="text-lg font-bold text-cyan-accent">
+                                                ₺{(getItemPrice(item) * item.qty).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    ))}
+
+                                    <div className="flex justify-between items-center pt-4 mt-4 border-t border-glass-border/50">
+                                        <span className="text-lg font-bold text-text-primary">Genel Toplam</span>
+                                        <span className="text-xl font-bold text-emerald-accent">₺{getTotal().toFixed(2)}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 justify-center">
                                     <button
                                         onClick={() => setShowConfirmModal(false)}
                                         className="flex-1 px-4 py-3 rounded-xl font-semibold text-text-primary bg-white/5 hover:bg-white/10 transition-colors"
