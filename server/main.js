@@ -17,7 +17,23 @@ function createWindow() {
         }
     });
 
-    win.loadURL('http://localhost:3000');
+    const port = process.env.PORT || 3001;
+
+    const loadApp = () => {
+        win.loadURL(`http://localhost:${port}`).catch((err) => {
+            console.log('Server not ready yet, retrying in 500ms...');
+            setTimeout(loadApp, 500);
+        });
+    };
+
+    // Clear cache and service workers on startup to ensure updates are visible
+    win.webContents.session.clearCache().then(() => {
+        win.webContents.session.clearStorageData({
+            storages: ['serviceworkers', 'cachestorage']
+        }).then(() => {
+            loadApp();
+        });
+    });
 }
 
 app.whenReady().then(() => {

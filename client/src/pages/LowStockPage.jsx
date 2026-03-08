@@ -5,6 +5,7 @@ import {
     AlertTriangle, Package, ArrowRight, Plus, X, Trash2,
     ShoppingCart, Building2, Send, TrendingDown, Banknote, CreditCard
 } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -200,6 +201,7 @@ export default function LowStockPage() {
 // ─── Quick Order Modal ───────────────────────────────────────
 function QuickOrderModal({ products, onClose, onOrdered }) {
     const { accounts, fetchAccounts } = useAccountStore();
+    const toast = useToast();
     const [counterparty, setCounterparty] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
     const [items, setItems] = useState(
@@ -233,7 +235,7 @@ function QuickOrderModal({ products, onClose, onOrdered }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!counterparty) return alert('Tedarikçi seçiniz');
+        if (!counterparty) return toast.warning('Tedarikçi seçiniz');
         setSubmitting(true);
         try {
             await api.post('/orders', {
@@ -248,7 +250,7 @@ function QuickOrderModal({ products, onClose, onOrdered }) {
             });
             onOrdered();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }

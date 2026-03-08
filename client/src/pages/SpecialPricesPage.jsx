@@ -3,6 +3,7 @@ import api from '../lib/api';
 import { usePosStore } from '../store/posStore';
 import { useAccountStore } from '../store/accountStore';
 import { Percent, Plus, X, Calendar } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
   return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -107,9 +108,8 @@ export default function SpecialPricesPage() {
                     </td>
                     <td className="py-2 pr-3">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
-                          r.IsActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-300'
-                        }`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${r.IsActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-300'
+                          }`}
                       >
                         {r.IsActive ? 'Aktif' : 'Pasif'}
                       </span>
@@ -148,6 +148,7 @@ export default function SpecialPricesPage() {
 }
 
 function SpecialPriceModal({ products, accounts, onClose, onSaved }) {
+  const toast = useToast();
   const [productId, setProductId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [name, setName] = useState('');
@@ -172,7 +173,7 @@ function SpecialPriceModal({ products, accounts, onClose, onSaved }) {
       });
       onSaved();
     } catch (err) {
-      alert(err.response?.data?.error || err.message);
+      toast.error(err.response?.data?.error || err.message);
     } finally {
       setSaving(false);
     }

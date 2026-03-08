@@ -31,9 +31,9 @@ import { startSyncManager, stopSyncManager } from './utils/syncManager.js';
 
 dotenv.config();
 
-// Keep native __dirname provided by CJS/pkg instead of redefining it.
-// If not defined (unlikely in CJS/pkg), fallback to cwd.
-const currentDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const currentDir = __dirname;
 
 const app = express();
 const httpServer = createServer(app);

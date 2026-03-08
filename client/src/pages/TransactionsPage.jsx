@@ -8,6 +8,7 @@ import {
 import { useAccountStore } from '../store/accountStore';
 import { printReport } from '../lib/printExport';
 import { exportToExcel } from '../lib/excelExport';
+import { useToast } from '../hooks/useToast';
 
 // ─── Type helpers ────────────────────────────────────────────
 const typeConfig = {
@@ -292,6 +293,7 @@ function KpiCard({ label, value, icon: Icon, color }) {
 function AddTransactionModal({ onClose }) {
     const createTransaction = useTransactionStore((s) => s.createTransaction);
     const { accounts, fetchAccounts } = useAccountStore();
+    const toast = useToast();
 
     const [type, setType] = useState('Expense');
     const [amount, setAmount] = useState('');
@@ -314,7 +316,7 @@ function AddTransactionModal({ onClose }) {
             });
             onClose();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }

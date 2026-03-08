@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStaffStore } from '../store/staffStore';
 import { useAuthStore } from '../store/authStore';
 import { Users, Plus, X } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 export default function StaffPage() {
   const { staff, fetchStaff, createStaff, updateStaff, deleteStaff } =
@@ -106,6 +107,7 @@ export default function StaffPage() {
 
 function StaffModal({ onClose, onCreated }) {
   const { createStaff } = useStaffStore();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [role, setRole] = useState('Cashier');
   const [pin, setPin] = useState('');
@@ -120,7 +122,7 @@ function StaffModal({ onClose, onCreated }) {
       await onCreated();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.error || err.message);
+      toast.error(err.response?.data?.error || err.message);
     } finally {
       setSaving(false);
     }

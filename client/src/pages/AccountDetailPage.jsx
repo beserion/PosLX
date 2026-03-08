@@ -6,6 +6,7 @@ import {
     ArrowUpRight, ArrowDownLeft, DollarSign, Calendar, Plus, X,
     Banknote, Clock, Hash
 } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -197,6 +198,7 @@ function PaymentModal({ accountId, accountName, accountType, onClose }) {
     const isSupplier = accountType === 'Tedarikçi';
     const actionLabel = isSupplier ? 'Ödeme' : 'Tahsilat';
     const { recordPayment } = useAccountStore();
+    const toast = useToast();
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -214,7 +216,7 @@ function PaymentModal({ accountId, accountName, accountType, onClose }) {
             });
             onClose();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }

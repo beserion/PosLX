@@ -7,6 +7,7 @@
         "start": "node index.js",
         "dev": "node --watch index.js",
         "dev:electron": "electron .",
+        "prebuild:exe": "shx rm -rf public && shx cp -r ../client/dist public",
         "build:exe": "electron-builder --win"
     },
     "dependencies": {
@@ -20,6 +21,7 @@
     "devDependencies": {
         "electron": "^34.3.0",
         "electron-builder": "^25.1.8",
-        "esbuild": "^0.25.0"
+        "esbuild": "^0.25.0",
+        "shx": "^0.4.0"
     }
 }

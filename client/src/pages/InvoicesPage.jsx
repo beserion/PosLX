@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { exportToExcel } from '../lib/excelExport';
 import { printReport } from '../lib/printExport';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,6 +20,7 @@ function fmtMoney(v) {
 // ── Main Page Component (Acts as a container for List vs Form) ──
 export default function InvoicesPage() {
     const navigate = useNavigate();
+    const toast = useToast();
     const [view, setView] = useState('list'); // 'list' | 'form'
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export default function InvoicesPage() {
             await api.delete(`/invoices/${id}`, { data: { reason } });
             fetchInvoices();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         }
     };
 
@@ -248,6 +250,7 @@ function InvoiceForm({ onClose }) {
     const products = usePosStore((s) => s.products);
     const fetchProducts = usePosStore((s) => s.fetchProducts);
     const { accounts, fetchAccounts } = useAccountStore();
+    const toast = useToast();
 
     // Tabs
     const [activeTab, setActiveTab] = useState('genel'); // genel, cari, sevk, not
@@ -320,7 +323,7 @@ function InvoiceForm({ onClose }) {
 
         const product = products.find(p => p.Barcodes?.includes(code) || p.Barcode === code);
         if (!product) {
-            alert('Bu barkod ile ürün bulunamadı.');
+            toast.warning('Bu barkod ile ürün bulunamadı.');
             setBarcodeInput('');
             return;
         }
@@ -407,8 +410,8 @@ function InvoiceForm({ onClose }) {
     const grandTotal = netTotalBeforeVat + totalVat;
 
     const handleSubmit = async () => {
-        if (!counterparty) return alert('Cari seçimi zorunludur.');
-        if (items.length === 0) return alert('Lütfen faturaya en az bir ürün ekleyin.');
+        if (!counterparty) return toast.warning('Cari seçimi zorunludur.');
+        if (items.length === 0) return toast.warning('Lütfen faturaya en az bir ürün ekleyin.');
 
         setSubmitting(true);
 
@@ -452,7 +455,7 @@ function InvoiceForm({ onClose }) {
             // Başarılı
             onClose();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }

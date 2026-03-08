@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { exportToExcel } from '../lib/excelExport';
 import { printReport } from '../lib/printExport';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -15,6 +16,7 @@ function fmtMoney(v) {
 export default function AccountsPage() {
     const { accounts, loading, fetchAccounts, deleteAccount } = useAccountStore();
     const navigate = useNavigate();
+    const toast = useToast();
 
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('');
@@ -37,7 +39,7 @@ export default function AccountsPage() {
         try {
             await deleteAccount(id);
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         }
     };
 
@@ -253,6 +255,7 @@ export default function AccountsPage() {
 function AccountFormModal({ account, onClose }) {
     const { createAccount, updateAccount } = useAccountStore();
     const isEdit = !!account;
+    const toast = useToast();
 
     const [name, setName] = useState(account?.Name || '');
     const [type, setType] = useState(account?.Type || 'Müşteri');
@@ -276,7 +279,7 @@ function AccountFormModal({ account, onClose }) {
             }
             onClose();
         } catch (err) {
-            alert(err.response?.data?.error || err.message);
+            toast.error(err.response?.data?.error || err.message);
         } finally {
             setSubmitting(false);
         }

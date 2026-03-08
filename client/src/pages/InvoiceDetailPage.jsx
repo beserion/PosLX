@@ -28,7 +28,7 @@ export default function InvoiceDetailPage() {
                 setInvoice(data);
             } catch (err) {
                 console.error(err);
-                alert('Fatura detayı yüklenemedi.');
+                toast.error('Fatura detayı yüklenemedi.');
             } finally {
                 setLoading(false);
             }

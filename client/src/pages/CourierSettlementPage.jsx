@@ -3,6 +3,7 @@ import { useCourierStore } from '../store/courierStore';
 import api from '../lib/api';
 import { Calendar, User, DollarSign, CreditCard, Banknote, Check, Calculator, LayoutTemplate, Clock } from 'lucide-react';
 import CourierHistoryTable from '../components/courier/CourierHistoryTable';
+import { useToast } from '../hooks/useToast';
 
 function fmtMoney(v) {
   return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -13,6 +14,7 @@ function fmtMoney(v) {
 
 export default function CourierSettlementPage() {
   const { couriers, fetchCouriers } = useCourierStore();
+  const toast = useToast();
 
   const today = new Date().toISOString().slice(0, 10);
   const [activeTab, setActiveTab] = useState('new');
@@ -94,9 +96,9 @@ export default function CourierSettlementPage() {
         ServiceCount: summary?.ServiceCount || 0,
       });
       await loadSummary();
-      alert('Kurye raporu kaydedildi.');
+      toast.success('Kurye raporu kaydedildi.');
     } catch (err) {
-      alert(err.response?.data?.error || err.message);
+      toast.error(err.response?.data?.error || err.message);
     } finally {
       setSaving(false);
     }
@@ -122,8 +124,8 @@ export default function CourierSettlementPage() {
         <button
           onClick={() => setActiveTab('new')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-300 flex items-center gap-2 ${activeTab === 'new'
-              ? 'border-cyan-400 text-cyan-400'
-              : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
+            ? 'border-cyan-400 text-cyan-400'
+            : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
             }`}
         >
           <Calculator size={18} />
@@ -132,8 +134,8 @@ export default function CourierSettlementPage() {
         <button
           onClick={() => setActiveTab('history')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-300 flex items-center gap-2 ${activeTab === 'history'
-              ? 'border-cyan-400 text-cyan-400'
-              : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
+            ? 'border-cyan-400 text-cyan-400'
+            : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
             }`}
         >
           <Clock size={18} />
