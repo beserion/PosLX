@@ -7,8 +7,10 @@ import {
     FileText, Plus, X, Trash2, Package, User,
     CreditCard, Banknote, Calendar, ClipboardList, Barcode,
     Save, Printer, ArrowRightCircle, CheckCircle2,
-    ListFilter
+    ListFilter, Download
 } from 'lucide-react';
+import { exportToExcel } from '../lib/excelExport';
+import { printReport } from '../lib/printExport';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -86,6 +88,70 @@ export default function InvoicesPage() {
                         className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-xl shadow-lg border-0 shrink-0 cursor-pointer"
                     >
                         <Plus size={18} /> Yeni Oluştur
+                    </button>
+                    <button
+                        onClick={() => {
+                            const columns = [
+                                { header: 'Tarih', key: 'CreatedAt', formatter: (v) => v ? new Date(v.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' },
+                                { header: 'Belge No', key: 'InvoiceNo', formatter: (v, row) => v || `#${row.ID}` },
+                                { header: 'Tür', key: 'Type' },
+                                { header: 'Cari', key: 'Counterparty' },
+                                { header: 'Durum', key: 'IsOpen', formatter: (v) => v ? 'Açık' : 'Kapalı' },
+                                { header: 'Ödeme Tipi', key: 'PaymentMethod', formatter: (v) => v === 'Card' ? 'Kredi Kartı' : v === 'Account' ? 'Cari Hesap' : 'Nakit' },
+                                { header: 'Vade (Gün)', key: 'PaymentDays' },
+                                { header: 'İsk. Öncesi Toplam (₺)', key: 'SubTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'İskonto Tutarı (₺)', key: 'TotalDiscount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'KDV Toplamı (₺)', key: 'TotalVat', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Genel Toplam (₺)', key: 'TotalAmount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Vergi Dairesi', key: 'TaxOffice' },
+                                { header: 'Vergi/TC No', key: 'TaxNumber' },
+                                { header: 'Telefon', key: 'Phone' },
+                                { header: 'Adres', key: 'Address' },
+                                { header: 'Sevk Tarihi', key: 'ShipDate', formatter: (v) => v ? new Date(v.replace(' ', 'T')).toLocaleDateString('tr-TR') : '' },
+                                { header: 'İrsaliye No', key: 'WaybillNo' },
+                                { header: 'Taşıyıcı', key: 'Carrier' },
+                                { header: 'Araç Plaka', key: 'PlateNo' },
+                                { header: 'Dahili Not', key: 'InternalNote' },
+                                { header: 'İçerik', key: 'ItemsSummary' },
+                            ];
+                            printReport(filteredInvoices, columns, { title: 'Fatura & İrsaliye Listesi' });
+                        }}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer shrink-0"
+                    >
+                        <Printer size={16} /> Yazdır
+                    </button>
+                    <button
+                        onClick={() => exportToExcel(
+                            filteredInvoices,
+                            [
+                                { header: 'Tarih', key: 'CreatedAt', formatter: (v) => v ? new Date(v.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' },
+                                { header: 'Belge No', key: 'InvoiceNo', formatter: (v, row) => v || `#${row.ID}` },
+                                { header: 'Tür', key: 'Type' },
+                                { header: 'Cari', key: 'Counterparty' },
+                                { header: 'Durum', key: 'IsOpen', formatter: (v) => v ? 'Açık' : 'Kapalı' },
+                                { header: 'Ödeme Tipi', key: 'PaymentMethod', formatter: (v) => v === 'Card' ? 'Kredi Kartı' : v === 'Account' ? 'Cari Hesap' : 'Nakit' },
+                                { header: 'Vade (Gün)', key: 'PaymentDays' },
+                                { header: 'İsk. Öncesi Toplam (₺)', key: 'SubTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'İskonto Tutarı (₺)', key: 'TotalDiscount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'KDV Toplamı (₺)', key: 'TotalVat', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Genel Toplam (₺)', key: 'TotalAmount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Vergi Dairesi', key: 'TaxOffice' },
+                                { header: 'Vergi/TC No', key: 'TaxNumber' },
+                                { header: 'Telefon', key: 'Phone' },
+                                { header: 'Adres', key: 'Address' },
+                                { header: 'Sevk Tarihi', key: 'ShipDate', formatter: (v) => v ? new Date(v.replace(' ', 'T')).toLocaleDateString('tr-TR') : '' },
+                                { header: 'İrsaliye No', key: 'WaybillNo' },
+                                { header: 'Taşıyıcı', key: 'Carrier' },
+                                { header: 'Araç Plaka', key: 'PlateNo' },
+                                { header: 'Dahili Not', key: 'InternalNote' },
+                                { header: 'İçerik', key: 'ItemsSummary' },
+                            ],
+                            'Faturalar',
+                            { title: 'Fatura & İrsaliye Listesi' }
+                        )}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer shrink-0"
+                    >
+                        <Download size={16} /> Excel'e Aktar
                     </button>
 
                     <div className="w-full md:w-px h-px md:h-8 bg-white/10 shrink-0" />
@@ -689,6 +755,12 @@ function InvoiceForm({ onClose }) {
                         <div className="flex items-center gap-2 text-sm font-semibold">Kredi Kartı</div>
                         <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${paymentMethod === 'Card' ? 'border-blue-400 bg-blue-400' : 'border-white/20'}`}>
                             {paymentMethod === 'Card' && <div className="w-1.5 h-1.5 bg-bg-dark rounded-full" />}
+                        </div>
+                    </button>
+                    <button onClick={() => setPaymentMethod('Account')} className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${paymentMethod === 'Account' ? 'bg-violet-500/10 border-violet-500/50 text-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.1)]' : 'border-white/5 hover:bg-white/5 text-text-muted'}`}>
+                        <div className="flex items-center gap-2 text-sm font-semibold">Cari Hesaba Yaz</div>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${paymentMethod === 'Account' ? 'border-violet-400 bg-violet-400' : 'border-white/20'}`}>
+                            {paymentMethod === 'Account' && <div className="w-1.5 h-1.5 bg-bg-dark rounded-full" />}
                         </div>
                     </button>
                 </div>

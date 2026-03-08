@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../config/db.js';
 import { io } from '../index.js';
 import { courierSockets } from '../sockets/courierSocket.js';
+import sql from 'mssql';
 
 const router = Router();
 
@@ -9,8 +10,8 @@ const router = Router();
 router.post('/', async (req, res) => {
     try {
         const { items, paymentMethod, tax, discount, serviceFee, courierID } = req.body;
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, mocking sale creation");
                 return res.json({ success: true, saleID: Math.floor(Math.random() * 1000) });
@@ -18,71 +19,109 @@ router.post('/', async (req, res) => {
             return res.status(503).json({ error: 'Database not available' });
         }
 
-        const insertSale = db.prepare(
-            `INSERT INTO Sales (TotalAmount, Tax, Discount, ServiceFee, PaymentMethod, CourierID)
-             VALUES (?, ?, ?, ?, ?, ?)`
-        );
-        const insertItem = db.prepare(
-            `INSERT INTO SaleItems (SaleID, ProductID, Qty, UnitPrice)
-             VALUES (?, ?, ?, ?)`
-        );
-        const decrementStock = db.prepare(
-            'UPDATE Products SET Stock = Stock - ? WHERE ID = ?'
-        );
-        const insertTransaction = db.prepare(
-            `INSERT INTO AccountTransactions (Type, Amount, Description, SaleID, PaymentMethod)
-             VALUES ('Sale', ?, ?, ?, ?)`
-        );
-        const getProduct = db.prepare(
-            'SELECT ID, SalePrice FROM Products WHERE ID = ?'
-        );
-        const getSpecialPrice = db.prepare(`
-            SELECT SpecialPrice
-            FROM SpecialPrices
-            WHERE ProductID = ?
-              AND IsActive = 1
-              AND (StartDate IS NULL OR date(StartDate) <= date('now','localtime'))
-              AND (EndDate   IS NULL OR date(EndDate)   >= date('now','localtime'))
-            ORDER BY
-              CASE WHEN StartDate IS NULL THEN 1 ELSE 0 END,
-              StartDate DESC,
-              ID DESC
-            LIMIT 1
-        `);
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        const createSale = db.transaction(() => {
+        let saleID;
+        let totalAmount;
+        try {
             let calculatedTotal = 0;
 
             // First pass: determine actual unit prices with special prices
-            const pricedItems = items.map((i) => {
-                const prod = getProduct.get(i.productID);
+            const pricedItems = [];
+            for (const i of items) {
+                const reqProd = new sql.Request(transaction);
+                const prodResult = await reqProd
+                    .input('productID', sql.Int, i.productID)
+                    .query('SELECT ID, SalePrice FROM Products WHERE ID = @productID');
+                const prod = prodResult.recordset.length > 0 ? prodResult.recordset[0] : null;
+
+                const reqSpecial = new sql.Request(transaction);
+                const spResult = await reqSpecial
+                    .input('productID', sql.Int, i.productID)
+                    .query(`
+                        SELECT TOP 1 SpecialPrice
+                        FROM SpecialPrices
+                        WHERE ProductID = @productID
+                          AND IsActive = 1
+                          AND (StartDate IS NULL OR CAST(StartDate AS DATE) <= CAST(GETDATE() AS DATE))
+                          AND (EndDate   IS NULL OR CAST(EndDate AS DATE)   >= CAST(GETDATE() AS DATE))
+                        ORDER BY
+                          CASE WHEN StartDate IS NULL THEN 1 ELSE 0 END,
+                          StartDate DESC,
+                          ID DESC
+                    `);
+                const sp = spResult.recordset.length > 0 ? spResult.recordset[0] : null;
+
                 const basePrice = prod ? prod.SalePrice : i.unitPrice;
-                const sp = getSpecialPrice.get(i.productID);
                 const finalPrice =
                     sp && sp.SpecialPrice !== null && sp.SpecialPrice >= 0
                         ? sp.SpecialPrice
                         : basePrice;
                 const lineTotal = finalPrice * i.qty;
                 calculatedTotal += lineTotal;
-                return { ...i, unitPrice: finalPrice };
-            });
+                pricedItems.push({ ...i, unitPrice: finalPrice });
+            }
 
-            const totalAmount = calculatedTotal + (serviceFee || 0) - (discount || 0);
-            const saleInfo = insertSale.run(totalAmount, tax || 0, discount || 0, serviceFee || 0, paymentMethod || 'Cash', courierID || null);
-            const saleID = saleInfo.lastInsertRowid;
+            totalAmount = calculatedTotal + (serviceFee || 0) - (discount || 0);
+
+            const reqSale = new sql.Request(transaction);
+            const courierIdType = courierID ? sql.Int : sql.Int;
+            const insertSaleResult = await reqSale
+                .input('TotalAmount', sql.Float, totalAmount)
+                .input('Tax', sql.Float, tax || 0)
+                .input('Discount', sql.Float, discount || 0)
+                .input('ServiceFee', sql.Float, serviceFee || 0)
+                .input('PaymentMethod', sql.NVarChar, paymentMethod || 'Cash')
+                .input('CourierID', courierIdType, courierID || null)
+                .query(`
+                    INSERT INTO Sales (TotalAmount, Tax, Discount, ServiceFee, PaymentMethod, CourierID)
+                    OUTPUT INSERTED.ID
+                    VALUES (@TotalAmount, @Tax, @Discount, @ServiceFee, @PaymentMethod, @CourierID)
+                `);
+            saleID = insertSaleResult.recordset[0].ID;
 
             for (const item of pricedItems) {
-                insertItem.run(saleID, item.productID, item.qty, item.unitPrice);
-                decrementStock.run(item.qty, item.productID);
+                const reqItem = new sql.Request(transaction);
+                await reqItem
+                    .input('SaleID', sql.Int, saleID)
+                    .input('ProductID', sql.Int, item.productID)
+                    .input('Qty', sql.Float, item.qty)
+                    .input('UnitPrice', sql.Float, item.unitPrice)
+                    .query(`
+                        INSERT INTO SaleItems (SaleID, ProductID, Qty, UnitPrice)
+                        VALUES (@SaleID, @ProductID, @Qty, @UnitPrice)
+                    `);
+
+                const reqStock = new sql.Request(transaction);
+                await reqStock
+                    .input('Qty', sql.Float, item.qty)
+                    .input('ProductID', sql.Int, item.productID)
+                    .query('UPDATE Products SET Stock = Stock - @Qty WHERE ID = @ProductID');
             }
 
             // Record account transaction
-            insertTransaction.run(totalAmount, `Satış #${saleID}`, saleID, paymentMethod || 'Cash');
+            const reqAccTx = new sql.Request(transaction);
+            await reqAccTx
+                .input('Amount', sql.Float, totalAmount)
+                .input('Description', sql.NVarChar, 'Satış #' + saleID)
+                .input('SaleID', sql.Int, saleID)
+                .input('PaymentMethod', sql.NVarChar, paymentMethod || 'Cash')
+                .query(`
+                    INSERT INTO AccountTransactions(Type, Amount, Description, SaleID, PaymentMethod)
+                    VALUES('Sale', @Amount, @Description, @SaleID, @PaymentMethod)
+                        `);
 
-            return { saleID, totalAmount };
-        });
-
-        const { saleID, totalAmount } = createSale();
+            await transaction.commit();
+        } catch (txErr) {
+            console.error('Sale Creation Error:', txErr);
+            try {
+                await transaction.rollback();
+            } catch (rollbackErr) {
+                console.error('Rollback failed:', rollbackErr.message);
+            }
+            throw txErr;
+        }
 
         // -------------------------------------------------------------
         // POSLx-Kurye (Courier APK) Delivery Assignment Socket Dispatch
@@ -92,18 +131,28 @@ router.post('/', async (req, res) => {
             const targetSocketId = courierSockets.get(courierID) || courierSockets.get(String(courierID)) || courierSockets.get(Number(courierID));
 
             // Fetch sale items with product names
-            const saleItems = db.prepare(`
+            const saleItemsResult = await pool.request()
+                .input('saleID', sql.Int, saleID)
+                .query(`
                 SELECT p.Name as name, si.Qty as qty, si.UnitPrice as price
                 FROM SaleItems si
                 JOIN Products p ON si.ProductID = p.ID
-                WHERE si.SaleID = ?
-            `).all(saleID);
+                WHERE si.SaleID = @saleID
+                    `);
+            const saleItems = saleItemsResult.recordset;
 
             // Fetch customer info if AccountID exists
-            const saleRow = db.prepare('SELECT AccountID FROM Sales WHERE ID = ?').get(saleID);
+            const saleRowResult = await pool.request()
+                .input('saleID', sql.Int, saleID)
+                .query('SELECT AccountID FROM Sales WHERE ID = @saleID');
+            const saleRow = saleRowResult.recordset[0];
+
             let customerInfo = { name: 'Müşteri', address: '', phone: '' };
             if (saleRow?.AccountID) {
-                const account = db.prepare('SELECT Name, Address, Phone FROM Accounts WHERE ID = ?').get(saleRow.AccountID);
+                const accountResult = await pool.request()
+                    .input('AccountID', sql.Int, saleRow.AccountID)
+                    .query('SELECT Name, Address, Phone FROM Accounts WHERE ID = @AccountID');
+                const account = accountResult.recordset.length > 0 ? accountResult.recordset[0] : null;
                 if (account) {
                     customerInfo = {
                         name: account.Name || 'Müşteri',
@@ -126,15 +175,17 @@ router.post('/', async (req, res) => {
             if (targetSocketId) {
                 const courierNsp = io.of('/couriers');
                 courierNsp.to(targetSocketId).emit('delivery_started', deliveryPayload);
-                console.log(`📦 Assigned Sale #${saleID} to Courier ID: ${courierID} (Socket: ${targetSocketId})`);
+                console.log('📦 Assigned Sale #' + saleID + ' to Courier ID: ' + courierID + ' (Socket: ' + targetSocketId + ')');
             } else {
                 // Fallback: broadcast to all couriers namespace — courier will filter by their ID
-                console.warn(`⚠️ Courier ID ${courierID} socket not found, broadcasting to namespace`);
+                console.warn('⚠️ Courier ID ' + courierID + ' socket not found, broadcasting to namespace');
                 io.of('/couriers').emit('delivery_started', deliveryPayload);
             }
 
             // Update courier status to Delivering
-            db.prepare('UPDATE Couriers SET Status = ? WHERE ID = ?').run('Delivering', courierID);
+            await pool.request()
+                .input('courierID', sql.Int, courierID)
+                .query("UPDATE Couriers SET Status = 'Delivering' WHERE ID = @courierID");
             io.of('/couriers').emit('status:changed', { courierID: Number(courierID), status: 'Delivering' });
         }
 
@@ -147,24 +198,24 @@ router.post('/', async (req, res) => {
 // GET /api/sales/summary — revenue & profit aggregates
 router.get('/summary', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, returning mock sales summary");
                 return res.json({ TotalSales: 45, TotalRevenue: 15200.5, NetProfit: 6300.25 });
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const row = db.prepare(`
+        const result = await pool.request().query(`
             SELECT
                 COUNT(DISTINCT s.ID) AS TotalSales,
-                IFNULL(SUM(s.TotalAmount), 0) AS TotalRevenue,
-                IFNULL(SUM(s.TotalAmount) - SUM(si.Qty * p.CostPrice), 0) AS NetProfit
+                    COALESCE(SUM(s.TotalAmount), 0) AS TotalRevenue,
+                    COALESCE(SUM(s.TotalAmount) - SUM(si.Qty * p.CostPrice), 0) AS NetProfit
             FROM Sales s
             JOIN SaleItems si ON si.SaleID = s.ID
             JOIN Products p ON p.ID = si.ProductID
-        `).get();
-        res.json(row || { TotalSales: 0, TotalRevenue: 0, NetProfit: 0 });
+                    `);
+        res.json(result.recordset[0] || { TotalSales: 0, TotalRevenue: 0, NetProfit: 0 });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -173,24 +224,27 @@ router.get('/summary', async (req, res) => {
 // GET /api/sales/unassigned — get unassigned orders
 router.get('/unassigned', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const rows = db.prepare(`
+        const result = await pool.request().query(`
             SELECT 
                 s.ID, s.TotalAmount, s.PaymentMethod, s.CreatedAt, s.CourierID,
-            a.Name as CustomerName, a.Address, a.Phone,
-            GROUP_CONCAT(p.Name || ' (' || si.Qty || ')', ', ') as ItemsSummary
+                a.Name as CustomerName, a.Address, a.Phone,
+                si.ItemsSummary
             FROM Sales s
             LEFT JOIN Accounts a ON s.AccountID = a.ID
-            LEFT JOIN SaleItems si ON si.SaleID = s.ID
-            LEFT JOIN Products p ON si.ProductID = p.ID
+            LEFT JOIN (
+                SELECT si.SaleID, STRING_AGG(CAST(p.Name + ' (' + CAST(si.Qty AS NVARCHAR(MAX)) + ')' AS NVARCHAR(MAX)), ', ') AS ItemsSummary
+                FROM SaleItems si
+                JOIN Products p ON si.ProductID = p.ID
+                GROUP BY si.SaleID
+            ) si ON si.SaleID = s.ID
             WHERE s.CourierID IS NULL 
-            GROUP BY s.ID
             ORDER BY s.CreatedAt DESC
-            `).all();
+        `);
 
-        res.json(rows);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -199,20 +253,20 @@ router.get('/unassigned', async (req, res) => {
 // GET /api/sales/courier-performance — get stats for dashboard
 router.get('/courier-performance', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const rows = db.prepare(`
+        const result = await pool.request().query(`
             SELECT 
                 c.Name as name,
-            COUNT(s.ID) as orders
+                    COUNT(s.ID) as orders
             FROM Couriers c
-            LEFT JOIN Sales s ON s.CourierID = c.ID AND date(s.CreatedAt) = date('now')
-            GROUP BY c.ID
+            LEFT JOIN Sales s ON s.CourierID = c.ID AND CAST(s.CreatedAt AS DATE) = CAST(GETDATE() AS DATE)
+            GROUP BY c.ID, c.Name
             ORDER BY orders DESC
-            `).all();
+                    `);
 
-        res.json(rows);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

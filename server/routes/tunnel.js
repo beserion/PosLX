@@ -32,13 +32,14 @@ router.get('/status', (_req, res) => {
 });
 
 // GET /api/tunnel/qr-data — data for QR code (public URL + LAN URL + token)
-router.get('/qr-data', (_req, res) => {
+router.get('/qr-data', async (_req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         const status = getTunnelStatus();
-        const tokenRow = db.prepare("SELECT value FROM system_settings WHERE key = 'courier_api_token'").get();
+        const tokenResult = await pool.request().query("SELECT [value] FROM system_settings WHERE [key] = 'courier_api_token'");
+        const tokenRow = tokenResult.recordset.length > 0 ? tokenResult.recordset[0] : null;
 
         const localIP = getLocalIP();
         const PORT = process.env.PORT || 3001;

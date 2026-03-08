@@ -22,6 +22,8 @@ import specialPricesRouter from './routes/specialPrices.js';
 import staffRouter from './routes/staff.js';
 import cancellationsRouter from './routes/cancellations.js';
 import printRouter from './routes/print.js';
+import printersRouter from './routes/printers.js';
+
 import { setupCourierSocket } from './sockets/courierSocket.js';
 import { getDb } from './config/db.js';
 import { startTunnel, stopTunnel } from './tunnel/tunnelManager.js';
@@ -62,7 +64,7 @@ app.use('/api/special-prices', specialPricesRouter);
 app.use('/api/staff', staffRouter);
 app.use('/api/cancellations', cancellationsRouter);
 app.use('/api/print', printRouter);
-
+app.use('/api/printers', printersRouter);
 // Health check
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -83,8 +85,8 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, async () => {
     console.log(`🚀 PosLX server running on http://localhost:${PORT}`);
-    // Initialize SQLite DB
-    getDb();
+    // Initialize MSSQL DB
+    await getDb();
     // Start Cloudflare Tunnel
     startTunnel(PORT);
 });

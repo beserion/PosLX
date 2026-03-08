@@ -1,494 +1,445 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import sql from 'mssql';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-// Resolve DB path — default to <server>/data/poslx.db
-const dbDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+// Parse server\instance format
+const rawServer = process.env.DB_SERVER || 'localhost';
+const serverParts = rawServer.split('\\');
+const serverHost = serverParts[0];
+const instanceName = serverParts.length > 1 ? serverParts[1] : undefined;
 
-const dbPath = process.env.DB_PATH || path.join(dbDir, 'poslx.db');
-
-let db = null;
-
-export function getDb() {
-  if (!db) {
-    try {
-      db = new Database(dbPath);
-      db.pragma('journal_mode = WAL');
-      db.pragma('foreign_keys = ON');
-      initSchema(db);
-      console.log(`✅ SQLite connected: ${dbPath}`);
-    } catch (err) {
-      console.error('❌ SQLite connection failed:', err.message);
-      db = null;
-    }
+const config = {
+  user: process.env.DB_USER || 'sa',
+  password: process.env.DB_PASS || 'YourPassword123!',
+  server: serverHost,
+  database: process.env.DB_NAME || 'poslx',
+  // Named instances use dynamic ports resolved by SQL Browser — don't set port
+  ...(instanceName ? {} : { port: parseInt(process.env.DB_PORT) || 1433 }),
+  options: {
+    encrypt: process.env.DB_ENCRYPT === 'true',
+    trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false',
+    enableArithAbort: true,
+    ...(instanceName ? { instanceName } : {})
   }
-  return db;
+};
+
+let poolPromise = null;
+
+export async function getDb() {
+  if (!poolPromise) {
+    poolPromise = sql.connect(config)
+      .then(async pool => {
+        console.log(`✅ MSSQL connected: ${config.server}/${config.database}`);
+        await initSchema(pool);
+        return pool;
+      })
+      .catch(err => {
+        console.error('❌ MSSQL connection failed:', err.message);
+        poolPromise = null;
+        throw err;
+      });
+  }
+  return poolPromise;
 }
 
 // ── Schema + Seed ────────────────────────────────────────────
-function initSchema(db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS Categories (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name      TEXT NOT NULL UNIQUE,
-      CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+async function initSchema(pool) {
+  const request = pool.request();
+
+  // Helper macro to run query and ignore "already exists" errors
+  const tryExec = async (query) => {
+    try {
+      await pool.request().query(query);
+    } catch (err) {
+      if (err.message.includes('already an object named') || err.message.includes('already exists')) {
+        // Ignore table/index already exists
+      } else {
+        console.warn(`Schema init warning: ${err.message}`);
+      }
+    }
+  };
+
+  const createTables = `
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Categories' AND xtype='U')
+    CREATE TABLE Categories (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      Name      NVARCHAR(255) NOT NULL UNIQUE,
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE TABLE IF NOT EXISTS Products (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name          TEXT    NOT NULL,
-      Stock         INTEGER NOT NULL DEFAULT 0,
-      CostPrice     REAL    NOT NULL DEFAULT 0,
-      SalePrice     REAL    NOT NULL DEFAULT 0,
-      Category      TEXT,
-      ImageURL      TEXT,
-      CriticalStock INTEGER NOT NULL DEFAULT 5,
-      ShelfLifeDays INTEGER,
-      CostMethod    TEXT    NOT NULL DEFAULT 'WeightedAvg',
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
-      IsDeleted     INTEGER NOT NULL DEFAULT 0
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Products' AND xtype='U')
+    CREATE TABLE Products (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      Name          NVARCHAR(255) NOT NULL,
+      Stock         INT NOT NULL DEFAULT 0,
+      CostPrice     FLOAT NOT NULL DEFAULT 0,
+      SalePrice     FLOAT NOT NULL DEFAULT 0,
+      Category      NVARCHAR(255),
+      ImageURL      NVARCHAR(1000),
+      CriticalStock INT NOT NULL DEFAULT 5,
+      ShelfLifeDays INT,
+      CostMethod    NVARCHAR(50) NOT NULL DEFAULT 'WeightedAvg',
+      IsDeleted     INT NOT NULL DEFAULT 0,
+      ShowInPos     INT NOT NULL DEFAULT 1,
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE TABLE IF NOT EXISTS ProductBarcodes (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      ProductID INTEGER NOT NULL,
-      Barcode   TEXT    NOT NULL,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ProductBarcodes' AND xtype='U')
+    CREATE TABLE ProductBarcodes (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      ProductID INT NOT NULL,
+      Barcode   NVARCHAR(255) NOT NULL,
       FOREIGN KEY (ProductID) REFERENCES Products(ID) ON DELETE CASCADE
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS IX_ProductBarcodes_Barcode
-      ON ProductBarcodes(Barcode);
-
-    CREATE INDEX IF NOT EXISTS IX_ProductBarcodes_ProductID
-      ON ProductBarcodes(ProductID);
-
-    CREATE TABLE IF NOT EXISTS Accounts (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name      TEXT    NOT NULL,
-      Type      TEXT    NOT NULL DEFAULT 'Müşteri',   -- Müşteri | Tedarikçi
-      Phone     TEXT,
-      Email     TEXT,
-      Address   TEXT,
-      TaxOffice TEXT,
-      TaxNo     TEXT,
-      Balance   REAL    NOT NULL DEFAULT 0,
-      CreatedAt TEXT    NOT NULL DEFAULT (datetime('now'))
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Accounts' AND xtype='U')
+    CREATE TABLE Accounts (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      Name      NVARCHAR(255) NOT NULL,
+      Type      NVARCHAR(50) NOT NULL DEFAULT 'Müşteri',
+      Phone     NVARCHAR(100),
+      Email     NVARCHAR(255),
+      Address   NVARCHAR(MAX),
+      TaxOffice NVARCHAR(255),
+      TaxNo     NVARCHAR(100),
+      Balance   FLOAT NOT NULL DEFAULT 0,
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE TABLE IF NOT EXISTS AccountLedger (
-      ID          INTEGER PRIMARY KEY AUTOINCREMENT,
-      AccountID   INTEGER NOT NULL,
-      Type        TEXT    NOT NULL DEFAULT 'Borç',   -- Borç | Alacak
-      Amount      REAL    NOT NULL DEFAULT 0,
-      Description TEXT,
-      RefType     TEXT,       -- Sale | Invoice | Payment | Manual
-      RefID       INTEGER,
-      CreatedAt   TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AccountLedger' AND xtype='U')
+    CREATE TABLE AccountLedger (
+      ID          INT IDENTITY(1,1) PRIMARY KEY,
+      AccountID   INT NOT NULL,
+      Type        NVARCHAR(50) NOT NULL DEFAULT 'Borç',
+      Amount      FLOAT NOT NULL DEFAULT 0,
+      Description NVARCHAR(MAX),
+      RefType     NVARCHAR(50),
+      RefID       INT,
+      CreatedAt   DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (AccountID) REFERENCES Accounts(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_AccountLedger_AccountID
-      ON AccountLedger(AccountID);
-    CREATE INDEX IF NOT EXISTS IX_AccountLedger_CreatedAt
-      ON AccountLedger(CreatedAt);
-
-    CREATE TABLE IF NOT EXISTS Sales (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      TotalAmount   REAL    NOT NULL DEFAULT 0,
-      Tax           REAL    NOT NULL DEFAULT 0,
-      Discount      REAL    NOT NULL DEFAULT 0,
-      ServiceFee    REAL    NOT NULL DEFAULT 0,
-      PaymentMethod TEXT    NOT NULL DEFAULT 'Cash',
-      CourierID     INTEGER,
-      AccountID     INTEGER,
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now'))
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Couriers' AND xtype='U')
+    CREATE TABLE Couriers (
+      ID              INT IDENTITY(1,1) PRIMARY KEY,
+      Name            NVARCHAR(255) NOT NULL,
+      Phone           NVARCHAR(100),
+      Status          NVARCHAR(50) NOT NULL DEFAULT 'Idle',
+      lat             FLOAT,
+      lng             FLOAT,
+      lastSeen        BIGINT,
+      CreatedAt       DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE INDEX IF NOT EXISTS IX_Sales_AccountID ON Sales(AccountID);
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Sales' AND xtype='U')
+    CREATE TABLE Sales (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      TotalAmount   FLOAT NOT NULL DEFAULT 0,
+      Tax           FLOAT NOT NULL DEFAULT 0,
+      Discount      FLOAT NOT NULL DEFAULT 0,
+      ServiceFee    FLOAT NOT NULL DEFAULT 0,
+      PaymentMethod NVARCHAR(50) NOT NULL DEFAULT 'Cash',
+      CourierID     INT,
+      AccountID     INT,
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE()
+    );
 
-    CREATE TABLE IF NOT EXISTS SaleItems (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      SaleID    INTEGER NOT NULL,
-      ProductID INTEGER NOT NULL,
-      Qty       INTEGER NOT NULL DEFAULT 1,
-      UnitPrice REAL    NOT NULL DEFAULT 0,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SaleItems' AND xtype='U')
+    CREATE TABLE SaleItems (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      SaleID    INT NOT NULL,
+      ProductID INT NOT NULL,
+      Qty       INT NOT NULL DEFAULT 1,
+      UnitPrice FLOAT NOT NULL DEFAULT 0,
       FOREIGN KEY (SaleID)    REFERENCES Sales(ID),
       FOREIGN KEY (ProductID) REFERENCES Products(ID)
     );
 
-    CREATE TABLE IF NOT EXISTS Couriers (
-      ID              INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name            TEXT    NOT NULL,
-      Phone           TEXT,
-      Status          TEXT    NOT NULL DEFAULT 'Idle',
-      CreatedAt       TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS AccountTransactions (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      Type          TEXT    NOT NULL DEFAULT 'Sale',
-      Amount        REAL    NOT NULL DEFAULT 0,
-      Description   TEXT,
-      Counterparty  TEXT,
-      SaleID        INTEGER,
-      InvoiceID     INTEGER,
-      AccountID     INTEGER,
-      PaymentMethod TEXT    NOT NULL DEFAULT 'Cash',
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AccountTransactions' AND xtype='U')
+    CREATE TABLE AccountTransactions (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      Type          NVARCHAR(50) NOT NULL DEFAULT 'Sale',
+      Amount        FLOAT NOT NULL DEFAULT 0,
+      Description   NVARCHAR(MAX),
+      Counterparty  NVARCHAR(255),
+      SaleID        INT,
+      InvoiceID     INT,
+      AccountID     INT,
+      PaymentMethod NVARCHAR(50) NOT NULL DEFAULT 'Cash',
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (SaleID) REFERENCES Sales(ID),
       FOREIGN KEY (AccountID) REFERENCES Accounts(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_AccountTransactions_CreatedAt
-      ON AccountTransactions(CreatedAt);
-    CREATE INDEX IF NOT EXISTS IX_AccountTransactions_AccountID
-      ON AccountTransactions(AccountID);
-
-    CREATE TABLE IF NOT EXISTS Invoices (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      InvoiceNo     TEXT,
-      Type          TEXT    NOT NULL DEFAULT 'Fatura',
-      Counterparty  TEXT    NOT NULL,
-      TotalAmount   REAL    NOT NULL DEFAULT 0,
-      SubTotal      REAL    NOT NULL DEFAULT 0,
-      TotalDiscount REAL    NOT NULL DEFAULT 0,
-      TotalVat      REAL    NOT NULL DEFAULT 0,
-      Description   TEXT,
-      AccountID     INTEGER,
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Invoices' AND xtype='U')
+    CREATE TABLE Invoices (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      InvoiceNo     NVARCHAR(100),
+      Type          NVARCHAR(50) NOT NULL DEFAULT 'Fatura',
+      Counterparty  NVARCHAR(255) NOT NULL,
+      TotalAmount   FLOAT NOT NULL DEFAULT 0,
+      SubTotal      FLOAT NOT NULL DEFAULT 0,
+      TotalDiscount FLOAT NOT NULL DEFAULT 0,
+      TotalVat      FLOAT NOT NULL DEFAULT 0,
+      Description   NVARCHAR(MAX),
+      AccountID     INT,
+      TaxOffice     NVARCHAR(255),
+      TaxNumber     NVARCHAR(100),
+      Address       NVARCHAR(MAX),
+      Phone         NVARCHAR(100),
+      WaybillNo     NVARCHAR(100),
+      Carrier       NVARCHAR(255),
+      PlateNo       NVARCHAR(100),
+      InternalNote  NVARCHAR(MAX),
+      ShipDate      DATETIME,
+      PaymentDays   INT,
+      IsOpen        INT NOT NULL DEFAULT 1,
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (AccountID) REFERENCES Accounts(ID)
     );
 
-    CREATE TABLE IF NOT EXISTS InvoiceItems (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      InvoiceID     INTEGER NOT NULL,
-      ProductID     INTEGER NOT NULL,
-      Qty           INTEGER NOT NULL DEFAULT 1,
-      UnitPrice     REAL    NOT NULL DEFAULT 0,
-      VatRate       REAL    NOT NULL DEFAULT 0,
-      VatType       TEXT    NOT NULL DEFAULT 'Hariç',
-      Disc1         REAL    NOT NULL DEFAULT 0,
-      Disc2         REAL    NOT NULL DEFAULT 0,
-      Disc3         REAL    NOT NULL DEFAULT 0,
-      RowTotal      REAL    NOT NULL DEFAULT 0,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='InvoiceItems' AND xtype='U')
+    CREATE TABLE InvoiceItems (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      InvoiceID     INT NOT NULL,
+      ProductID     INT NOT NULL,
+      Qty           INT NOT NULL DEFAULT 1,
+      UnitPrice     FLOAT NOT NULL DEFAULT 0,
+      VatRate       FLOAT NOT NULL DEFAULT 0,
+      VatType       NVARCHAR(50) NOT NULL DEFAULT 'Hariç',
+      Disc1         FLOAT NOT NULL DEFAULT 0,
+      Disc2         FLOAT NOT NULL DEFAULT 0,
+      Disc3         FLOAT NOT NULL DEFAULT 0,
+      RowTotal      FLOAT NOT NULL DEFAULT 0,
       FOREIGN KEY (InvoiceID) REFERENCES Invoices(ID) ON DELETE CASCADE,
       FOREIGN KEY (ProductID) REFERENCES Products(ID)
     );
 
-    CREATE TABLE IF NOT EXISTS CashRegisters (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name      TEXT    NOT NULL,
-      Type      TEXT    NOT NULL DEFAULT 'Nakit',   -- Nakit | Banka | POS
-      Balance   REAL    NOT NULL DEFAULT 0,
-      CreatedAt TEXT    NOT NULL DEFAULT (datetime('now'))
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CashRegisters' AND xtype='U')
+    CREATE TABLE CashRegisters (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      Name      NVARCHAR(255) NOT NULL,
+      Type      NVARCHAR(50) NOT NULL DEFAULT 'Nakit',
+      Balance   FLOAT NOT NULL DEFAULT 0,
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE TABLE IF NOT EXISTS CashMovements (
-      ID              INTEGER PRIMARY KEY AUTOINCREMENT,
-      CashRegisterID  INTEGER NOT NULL,
-      Type            TEXT    NOT NULL DEFAULT 'Giriş',  -- Giriş | Çıkış
-      Amount          REAL    NOT NULL DEFAULT 0,
-      Description     TEXT,
-      RefType         TEXT,      -- Sale | Invoice | Expense | Manual
-      RefID           INTEGER,
-      CreatedAt       TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CashMovements' AND xtype='U')
+    CREATE TABLE CashMovements (
+      ID              INT IDENTITY(1,1) PRIMARY KEY,
+      CashRegisterID  INT NOT NULL,
+      Type            NVARCHAR(50) NOT NULL DEFAULT 'Giriş',
+      Amount          FLOAT NOT NULL DEFAULT 0,
+      Description     NVARCHAR(MAX),
+      RefType         NVARCHAR(50),
+      RefID           INT,
+      CreatedAt       DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (CashRegisterID) REFERENCES CashRegisters(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_CashMovements_RegisterID
-      ON CashMovements(CashRegisterID);
-    CREATE INDEX IF NOT EXISTS IX_CashMovements_CreatedAt
-      ON CashMovements(CreatedAt);
-
-    CREATE TABLE IF NOT EXISTS StockBatches (
-      ID           INTEGER PRIMARY KEY AUTOINCREMENT,
-      ProductID    INTEGER NOT NULL,
-      Qty          INTEGER NOT NULL DEFAULT 0,
-      RemainingQty INTEGER NOT NULL DEFAULT 0,
-      UnitCost     REAL    NOT NULL DEFAULT 0,
-      ExpiryDate   TEXT,
-      InvoiceID    INTEGER,
-      CreatedAt    TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='StockBatches' AND xtype='U')
+    CREATE TABLE StockBatches (
+      ID           INT IDENTITY(1,1) PRIMARY KEY,
+      ProductID    INT NOT NULL,
+      Qty          INT NOT NULL DEFAULT 0,
+      RemainingQty INT NOT NULL DEFAULT 0,
+      UnitCost     FLOAT NOT NULL DEFAULT 0,
+      ExpiryDate   DATETIME,
+      InvoiceID    INT,
+      CreatedAt    DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (ProductID) REFERENCES Products(ID),
       FOREIGN KEY (InvoiceID) REFERENCES Invoices(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_StockBatches_ProductID
-      ON StockBatches(ProductID);
-
-    CREATE TABLE IF NOT EXISTS PurchaseOrders (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      Counterparty  TEXT    NOT NULL,
-      AccountID     INTEGER,
-      Status        TEXT    NOT NULL DEFAULT 'Beklemede',  -- Beklemede | Teslim Alındı | İptal
-      TotalAmount   REAL    NOT NULL DEFAULT 0,
-      Description   TEXT,
-      PaymentMethod TEXT    NOT NULL DEFAULT 'Cash',
-      InvoiceID     INTEGER,
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
-      ReceivedAt    TEXT,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PurchaseOrders' AND xtype='U')
+    CREATE TABLE PurchaseOrders (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      Counterparty  NVARCHAR(255) NOT NULL,
+      AccountID     INT,
+      Status        NVARCHAR(50) NOT NULL DEFAULT 'Beklemede',
+      TotalAmount   FLOAT NOT NULL DEFAULT 0,
+      Description   NVARCHAR(MAX),
+      PaymentMethod NVARCHAR(50) NOT NULL DEFAULT 'Cash',
+      InvoiceID     INT,
+      ReceivedAt    DATETIME,
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (AccountID) REFERENCES Accounts(ID)
     );
 
-    CREATE TABLE IF NOT EXISTS PurchaseOrderItems (
-      ID              INTEGER PRIMARY KEY AUTOINCREMENT,
-      PurchaseOrderID INTEGER NOT NULL,
-      ProductID       INTEGER NOT NULL,
-      Qty             INTEGER NOT NULL DEFAULT 1,
-      UnitPrice       REAL    NOT NULL DEFAULT 0,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PurchaseOrderItems' AND xtype='U')
+    CREATE TABLE PurchaseOrderItems (
+      ID              INT IDENTITY(1,1) PRIMARY KEY,
+      PurchaseOrderID INT NOT NULL,
+      ProductID       INT NOT NULL,
+      Qty             INT NOT NULL DEFAULT 1,
+      UnitPrice       FLOAT NOT NULL DEFAULT 0,
       FOREIGN KEY (PurchaseOrderID) REFERENCES PurchaseOrders(ID) ON DELETE CASCADE,
       FOREIGN KEY (ProductID) REFERENCES Products(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_PurchaseOrders_Status
-      ON PurchaseOrders(Status);
-
-    CREATE TABLE IF NOT EXISTS CourierSettlements (
-      ID             INTEGER PRIMARY KEY AUTOINCREMENT,
-      CourierID      INTEGER NOT NULL,
-      Date           TEXT    NOT NULL,
-      CashDelivered  REAL    NOT NULL DEFAULT 0,
-      Pos1Amount     REAL    NOT NULL DEFAULT 0,
-      Pos2Amount     REAL    NOT NULL DEFAULT 0,
-      Pos3Amount     REAL    NOT NULL DEFAULT 0,
-      PosTotal       REAL    NOT NULL DEFAULT 0,
-      Difference     REAL    NOT NULL DEFAULT 0,
-      CourierPayment REAL    NOT NULL DEFAULT 0,
-      Turnover       REAL    NOT NULL DEFAULT 0,
-      SalesAmount    REAL    NOT NULL DEFAULT 0,
-      ServiceAmount  REAL    NOT NULL DEFAULT 0,
-      ServiceCount   INTEGER NOT NULL DEFAULT 0,
-      CreatedAt      TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CourierSettlements' AND xtype='U')
+    CREATE TABLE CourierSettlements (
+      ID             INT IDENTITY(1,1) PRIMARY KEY,
+      CourierID      INT NOT NULL,
+      Date           NVARCHAR(50) NOT NULL,
+      CashDelivered  FLOAT NOT NULL DEFAULT 0,
+      Pos1Amount     FLOAT NOT NULL DEFAULT 0,
+      Pos2Amount     FLOAT NOT NULL DEFAULT 0,
+      Pos3Amount     FLOAT NOT NULL DEFAULT 0,
+      PosTotal       FLOAT NOT NULL DEFAULT 0,
+      Difference     FLOAT NOT NULL DEFAULT 0,
+      CourierPayment FLOAT NOT NULL DEFAULT 0,
+      Turnover       FLOAT NOT NULL DEFAULT 0,
+      SalesAmount    FLOAT NOT NULL DEFAULT 0,
+      ServiceAmount  FLOAT NOT NULL DEFAULT 0,
+      ServiceCount   INT NOT NULL DEFAULT 0,
+      CreatedAt      DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (CourierID) REFERENCES Couriers(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_CourierSettlements_Date
-      ON CourierSettlements(Date);
-
-    CREATE INDEX IF NOT EXISTS IX_CourierSettlements_CourierID
-      ON CourierSettlements(CourierID);
-
-    CREATE TABLE IF NOT EXISTS CourierDailyStats (
-      ID                INTEGER PRIMARY KEY AUTOINCREMENT,
-      CourierID         INTEGER NOT NULL,
-      Date              TEXT    NOT NULL,
-      TotalDistanceKm   REAL    NOT NULL DEFAULT 0,
-      PackagesDelivered INTEGER NOT NULL DEFAULT 0,
-      CreatedAt         TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CourierDailyStats' AND xtype='U')
+    CREATE TABLE CourierDailyStats (
+      ID                INT IDENTITY(1,1) PRIMARY KEY,
+      CourierID         INT NOT NULL,
+      Date              NVARCHAR(50) NOT NULL,
+      TotalDistanceKm   FLOAT NOT NULL DEFAULT 0,
+      PackagesDelivered INT NOT NULL DEFAULT 0,
+      CreatedAt         DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (CourierID) REFERENCES Couriers(ID)
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS IX_CourierDailyStats_Date_CourierID
-      ON CourierDailyStats(Date, CourierID);
-
-    CREATE TABLE IF NOT EXISTS system_settings (
-      key   TEXT PRIMARY KEY,
-      value TEXT
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='system_settings' AND xtype='U')
+    CREATE TABLE system_settings (
+      [key]   NVARCHAR(255) PRIMARY KEY,
+      [value] NVARCHAR(MAX)
     );
 
-    CREATE TABLE IF NOT EXISTS SpecialPrices (
-      ID            INTEGER PRIMARY KEY AUTOINCREMENT,
-      ProductID     INTEGER NOT NULL,
-      AccountID     INTEGER,
-      Name          TEXT,
-      SpecialPrice  REAL    NOT NULL,
-      StartDate     TEXT,
-      EndDate       TEXT,
-      IsActive      INTEGER NOT NULL DEFAULT 1,
-      CreatedAt     TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Printers' AND xtype='U')
+    CREATE TABLE Printers (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      Name      NVARCHAR(255) NOT NULL,
+      Path      NVARCHAR(500) NOT NULL,
+      Type      NVARCHAR(50) NOT NULL DEFAULT 'Thermal',
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
+    );
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SpecialPrices' AND xtype='U')
+    CREATE TABLE SpecialPrices (
+      ID            INT IDENTITY(1,1) PRIMARY KEY,
+      ProductID     INT NOT NULL,
+      AccountID     INT,
+      Name          NVARCHAR(255),
+      SpecialPrice  FLOAT NOT NULL,
+      StartDate     DATETIME,
+      EndDate       DATETIME,
+      IsActive      INT NOT NULL DEFAULT 1,
+      CreatedAt     DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (ProductID) REFERENCES Products(ID),
       FOREIGN KEY (AccountID) REFERENCES Accounts(ID)
     );
 
-    CREATE INDEX IF NOT EXISTS IX_SpecialPrices_ProductID
-      ON SpecialPrices(ProductID);
-
-    CREATE INDEX IF NOT EXISTS IX_SpecialPrices_AccountID
-      ON SpecialPrices(AccountID);
-
-    CREATE TABLE IF NOT EXISTS PriceChanges (
-      ID          INTEGER PRIMARY KEY AUTOINCREMENT,
-      ProductID   INTEGER NOT NULL,
-      OldPrice    REAL    NOT NULL,
-      NewPrice    REAL    NOT NULL,
-      ChangedAt   TEXT    NOT NULL DEFAULT (datetime('now')),
-      Reason      TEXT,
-      PerformedBy TEXT,
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PriceChanges' AND xtype='U')
+    CREATE TABLE PriceChanges (
+      ID          INT IDENTITY(1,1) PRIMARY KEY,
+      ProductID   INT NOT NULL,
+      OldPrice    FLOAT NOT NULL,
+      NewPrice    FLOAT NOT NULL,
+      Reason      NVARCHAR(MAX),
+      PerformedBy NVARCHAR(255),
+      ChangedAt   DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (ProductID) REFERENCES Products(ID)
     );
 
-    CREATE TABLE IF NOT EXISTS Staff (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      Name      TEXT    NOT NULL,
-      Role      TEXT    NOT NULL DEFAULT 'Cashier',
-      Pin       TEXT    NOT NULL,
-      IsActive  INTEGER NOT NULL DEFAULT 1,
-      CreatedAt TEXT    NOT NULL DEFAULT (datetime('now'))
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Staff' AND xtype='U')
+    CREATE TABLE Staff (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      Name      NVARCHAR(255) NOT NULL,
+      Role      NVARCHAR(50) NOT NULL DEFAULT 'Cashier',
+      Pin       NVARCHAR(50) NOT NULL,
+      IsActive  INT NOT NULL DEFAULT 1,
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
     );
 
-    CREATE TABLE IF NOT EXISTS CancellationLogs (
-      ID        INTEGER PRIMARY KEY AUTOINCREMENT,
-      RefType   TEXT    NOT NULL,              -- Sale | Invoice | Other
-      RefID     INTEGER NOT NULL,
-      Reason    TEXT,
-      StaffID   INTEGER,
-      CreatedAt TEXT    NOT NULL DEFAULT (datetime('now')),
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CancellationLogs' AND xtype='U')
+    CREATE TABLE CancellationLogs (
+      ID        INT IDENTITY(1,1) PRIMARY KEY,
+      RefType   NVARCHAR(50) NOT NULL,
+      RefID     INT NOT NULL,
+      Reason    NVARCHAR(MAX),
+      StaffID   INT,
+      CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
       FOREIGN KEY (StaffID) REFERENCES Staff(ID)
     );
-  `);
+  `;
 
-  // ── Safe ALTER TABLE for existing DBs that lack new columns ──
-  const safeAddColumn = (table, column, def) => {
-    try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`); } catch (_) { /* already exists */ }
-  };
-  safeAddColumn('Couriers', 'lat', 'REAL');
-  safeAddColumn('Couriers', 'lng', 'REAL');
-  safeAddColumn('Couriers', 'lastSeen', 'INTEGER');
-  safeAddColumn('Products', 'CriticalStock', 'INTEGER NOT NULL DEFAULT 5');
-  safeAddColumn('Products', 'ShelfLifeDays', 'INTEGER');
-  safeAddColumn('Products', 'CostMethod', "TEXT NOT NULL DEFAULT 'WeightedAvg'");
-  safeAddColumn('Products', 'CostMethod', "TEXT NOT NULL DEFAULT 'WeightedAvg'");
-  safeAddColumn('Products', 'IsDeleted', 'INTEGER NOT NULL DEFAULT 0');
-  safeAddColumn('Products', 'ShowInPos', 'INTEGER NOT NULL DEFAULT 1');
-  safeAddColumn('Sales', 'AccountID', 'INTEGER');
-  safeAddColumn('Sales', 'ServiceFee', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('Invoices', 'AccountID', 'INTEGER');
-  safeAddColumn('Invoices', 'SubTotal', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('Invoices', 'TotalDiscount', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('Invoices', 'TotalVat', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('Invoices', 'TaxOffice', 'TEXT');
-  safeAddColumn('Invoices', 'TaxNumber', 'TEXT');
-  safeAddColumn('Invoices', 'Address', 'TEXT');
-  safeAddColumn('Invoices', 'Phone', 'TEXT');
-  safeAddColumn('Invoices', 'WaybillNo', 'TEXT');
-  safeAddColumn('Invoices', 'Carrier', 'TEXT');
-  safeAddColumn('Invoices', 'PlateNo', 'TEXT');
-  safeAddColumn('Invoices', 'InternalNote', 'TEXT');
-  safeAddColumn('Invoices', 'ShipDate', 'TEXT');
-  safeAddColumn('Invoices', 'PaymentDays', 'INTEGER');
-  safeAddColumn('Invoices', 'IsOpen', 'INTEGER NOT NULL DEFAULT 1');
-  safeAddColumn('InvoiceItems', 'VatRate', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('InvoiceItems', 'VatType', "TEXT NOT NULL DEFAULT 'Hariç'");
-  safeAddColumn('InvoiceItems', 'Disc1', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('InvoiceItems', 'Disc2', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('InvoiceItems', 'Disc3', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('InvoiceItems', 'RowTotal', 'REAL NOT NULL DEFAULT 0');
-  safeAddColumn('AccountTransactions', 'AccountID', 'INTEGER');
+  // Safely alter tables to add missing columns in case of old schema
+  const alterTables = `
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'AccountID' AND Object_ID = Object_ID(N'Sales'))
+    BEGIN
+        ALTER TABLE Sales ADD AccountID INT;
+    END
 
-  // ── Seed data ──────────────────────────────────────────────
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'IsDeleted' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD IsDeleted INT NOT NULL DEFAULT 0;
+    END
 
-  // Default accounts
-  const accCount = db.prepare('SELECT COUNT(*) AS cnt FROM Accounts').get();
-  if (accCount.cnt === 0) {
-    db.prepare(`INSERT INTO Accounts (Name, Type, Phone) VALUES ('Genel Müşteri', 'Müşteri', '-')`).run();
-    db.prepare(`INSERT INTO Accounts (Name, Type, Phone) VALUES ('Genel Tedarikçi', 'Tedarikçi', '-')`).run();
-  }
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'ShowInPos' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD ShowInPos INT NOT NULL DEFAULT 1;
+    END
+    
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'isIngredient' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD isIngredient BIT NOT NULL DEFAULT 0;
+    END
 
-  // Default cash register
-  const crCount = db.prepare('SELECT COUNT(*) AS cnt FROM CashRegisters').get();
-  if (crCount.cnt === 0) {
-    db.prepare(`INSERT INTO CashRegisters (Name, Type, Balance) VALUES ('Ana Kasa', 'Nakit', 0)`).run();
-  }
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'CriticalStock' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD CriticalStock INT NOT NULL DEFAULT 5;
+    END
 
-  const catCount = db.prepare('SELECT COUNT(*) AS cnt FROM Categories').get();
-  if (catCount.cnt === 0) {
-    /* Test için yoruma alındı
-    const insertCat = db.prepare('INSERT INTO Categories (Name) VALUES (?)');
-    const seedCats = db.transaction((names) => {
-      for (const n of names) insertCat.run(n);
-    });
-    seedCats(['Hot Drinks', 'Cold Drinks', 'Desserts', 'Pastry', 'Food']);
-    */
-  }
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'ShelfLifeDays' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD ShelfLifeDays INT;
+    END
 
-  const prodCount = db.prepare('SELECT COUNT(*) AS cnt FROM Products').get();
-  if (prodCount.cnt === 0) {
-    /* Test için yoruma alındı
-    const insertProd = db.prepare(
-      'INSERT INTO Products (Name, Stock, CostPrice, SalePrice, Category) VALUES (?, ?, ?, ?, ?)'
-    );
-    const insertBarcode = db.prepare(
-      'INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (?, ?)'
-    );
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'CostMethod' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD CostMethod NVARCHAR(50) NOT NULL DEFAULT 'WeightedAvg';
+    END
 
-    const seedProducts = db.transaction(() => {
-      const products = [
-        ['Espresso', 120, 8, 25, 'Hot Drinks'],
-        ['Americano', 95, 9, 28, 'Hot Drinks'],
-        ['Latte', 80, 12, 35, 'Hot Drinks'],
-        ['Cappuccino', 70, 12, 35, 'Hot Drinks'],
-        ['Iced Tea', 150, 5, 18, 'Cold Drinks'],
-        ['Fresh Orange Juice', 45, 15, 30, 'Cold Drinks'],
-        ['Chocolate Cake', 30, 20, 45, 'Desserts'],
-        ['Croissant', 60, 10, 22, 'Pastry'],
-        ['Sandwich', 40, 18, 38, 'Food'],
-        ['Mineral Water', 200, 2, 8, 'Cold Drinks'],
-        ['Turkish Coffee', 90, 10, 20, 'Hot Drinks'],
-        ['Tiramisu', 25, 22, 48, 'Desserts'],
-      ];
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'ServiceFee' AND Object_ID = Object_ID(N'Sales'))
+    BEGIN
+        ALTER TABLE Sales ADD ServiceFee FLOAT NOT NULL DEFAULT 0;
+    END
+  `;
 
-      const barcodes = [
-        [1, '8690000001'], [1, '8690000001A'],
-        [2, '8690000002'],
-        [3, '8690000003'], [3, '8690000003A'],
-        [4, '8690000004'],
-        [5, '8690000005'],
-        [6, '8690000006'],
-        [7, '8690000007'],
-        [8, '8690000008'],
-        [9, '8690000009'],
-        [10, '8690000010'],
-        [11, '8690000011'],
-        [12, '8690000012'],
-      ];
+  await tryExec(createTables);
+  await tryExec(alterTables);
 
-      for (const p of products) insertProd.run(...p);
-      for (const b of barcodes) insertBarcode.run(...b);
-    });
-    seedProducts();
-    */
-  }
+  // Indexes using tryExec
+  await tryExec(`CREATE UNIQUE INDEX IX_ProductBarcodes_Barcode ON ProductBarcodes(Barcode)`);
+  await tryExec(`CREATE INDEX IX_ProductBarcodes_ProductID ON ProductBarcodes(ProductID)`);
+  await tryExec(`CREATE INDEX IX_Sales_AccountID ON Sales(AccountID)`);
+  await tryExec(`CREATE UNIQUE INDEX IX_CourierDailyStats_Date_CourierID ON CourierDailyStats(Date, CourierID)`);
 
-  const courierCount = db.prepare('SELECT COUNT(*) AS cnt FROM Couriers').get();
-  if (courierCount.cnt === 0) {
-    /* Test için yoruma alındı
-    const insertCourier = db.prepare(
-      'INSERT INTO Couriers (Name, Phone, Status) VALUES (?, ?, ?)'
-    );
-    const seedCouriers = db.transaction(() => {
-      const couriers = [
-        ['Ahmet Yılmaz', '+90 532 111 2233', 'Delivering'],
-        ['Mehmet Demir', '+90 535 222 3344', 'Idle'],
-        ['Ayşe Kaya', '+90 538 333 4455', 'Delivering'],
-        ['Fatma Çelik', '+90 541 444 5566', 'Offline'],
-        ['Ali Öztürk', '+90 544 555 6677', 'Delivering'],
-      ];
-      for (const c of couriers) insertCourier.run(...c);
-    });
-    seedCouriers();
-    */
-  }
+  // Cleanup soft-deleted product barcodes
+  await tryExec(`DELETE FROM ProductBarcodes WHERE ProductID IN (SELECT ID FROM Products WHERE ISNULL(IsDeleted, 0) = 1)`);
 
-  // Cleanup: remove barcodes of soft-deleted products so they can be reused
-  try {
-    db.exec(`DELETE FROM ProductBarcodes WHERE ProductID IN (SELECT ID FROM Products WHERE IFNULL(IsDeleted, 0) = 1)`);
-  } catch (_) {
-    // ignore
-  }
-
-  // Seed courier_api_token if not present
-  const tokenRow = db.prepare("SELECT value FROM system_settings WHERE key = 'courier_api_token'").get();
-  if (!tokenRow) {
+  // Seed courier API token
+  const tokenTest = await request.query(`SELECT value FROM system_settings WHERE [key] = 'courier_api_token'`);
+  if (tokenTest.recordset.length === 0) {
     const token = crypto.randomUUID();
-    db.prepare("INSERT INTO system_settings (key, value) VALUES ('courier_api_token', ?)").run(token);
+    await request
+      .input('key', sql.NVarChar, 'courier_api_token')
+      .input('value', sql.NVarChar, token)
+      .query(`INSERT INTO system_settings ([key], [value]) VALUES (@key, @value)`);
     console.log(`🔑 Generated courier API token: ${token}`);
   }
 }
 
 export default getDb;
+

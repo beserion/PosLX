@@ -1,0 +1,6 @@
+{
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.expo/**"
+  ]
+}

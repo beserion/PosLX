@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 import { useCourierStore } from '../../store/courierStore';
-import { Calendar, User, Search, RefreshCw, ChevronDown, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar, User, Search, RefreshCw, ChevronDown, CheckCircle2, XCircle, Download, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { exportToExcel } from '../../lib/excelExport';
+import { printReport } from '../../lib/printExport';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -45,6 +47,65 @@ export default function CourierHistoryTable() {
 
     const handleFilterChange = (key, value) => {
         setFilter(prev => ({ ...prev, [key]: value }));
+    };
+
+    const getColumns = () => [
+        { header: 'Tarih', key: 'Date', formatter: (v) => format(new Date(v), 'dd.MM.yyyy') },
+        { header: 'Kurye', key: 'CourierName', formatter: (v, row) => v || `Kurye #${row.CourierID}` },
+        { header: 'Nakit Teslim', key: 'CashDelivered', formatter: (v) => Number(v || 0) },
+        { header: 'POS Toplamı', key: 'PosTotal', formatter: (v) => Number(v || 0) },
+        { header: 'Teslim Edilen', key: 'Delivered', formatter: (v, row) => (Number(row.CashDelivered) || 0) + (Number(row.PosTotal) || 0) },
+        { header: 'Ciro (Beklenen)', key: 'Turnover', formatter: (v) => Number(v || 0) },
+        {
+            header: 'Fark', key: 'Difference', formatter: (v, row) => {
+                const delivered = (Number(row.CashDelivered) || 0) + (Number(row.PosTotal) || 0);
+                const expected = Number(row.Turnover) || 0;
+                return delivered - expected;
+            }
+        },
+        {
+            header: 'Durum', key: 'Status', formatter: (v, row) => {
+                const delivered = (Number(row.CashDelivered) || 0) + (Number(row.PosTotal) || 0);
+                const expected = Number(row.Turnover) || 0;
+                const difference = delivered - expected;
+                if (difference === 0) return 'Tam';
+                if (difference > 0) return 'Fazla';
+                return 'Eksik';
+            }
+        }
+    ];
+
+    const getReportDetails = () => {
+        let filename = 'Kurye_Raporlari';
+        let reportTitle = 'Kurye Gün Sonu Raporları';
+        if (filter.courierId) {
+            const courier = couriers.find(c => c.ID === Number(filter.courierId));
+            if (courier) {
+                filename = `Kurye_Raporu_${courier.Name.replace(/\s+/g, '_')}`;
+                reportTitle = `${courier.Name} - Kurye Gün Sonu Raporu`;
+            }
+        }
+        return { filename, reportTitle };
+    };
+
+    const handleExportExcel = () => {
+        if (!history || history.length === 0) return;
+        const columns = getColumns();
+        const { filename, reportTitle } = getReportDetails();
+
+        exportToExcel(history, columns, filename, {
+            title: reportTitle
+        });
+    };
+
+    const handlePrint = () => {
+        if (!history || history.length === 0) return;
+        const columns = getColumns();
+        const { reportTitle } = getReportDetails();
+
+        printReport(history, columns, {
+            title: reportTitle
+        });
     };
 
     return (
@@ -98,14 +159,32 @@ export default function CourierHistoryTable() {
                     </div>
                 </div>
 
-                <button
-                    onClick={loadHistory}
-                    disabled={loading}
-                    className="btn-primary p-2 h-[42px] w-[42px] rounded-xl flex items-center justify-center shrink-0"
-                    title="Yenile"
-                >
-                    <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handlePrint}
+                        disabled={loading || history.length === 0}
+                        className="btn-ghost px-4 h-[42px] rounded-xl flex items-center justify-center gap-2 shrink-0 border border-white/10 hover:border-cyan-500/50 hover:text-cyan-400 transition-colors text-sm font-medium"
+                    >
+                        <Printer size={18} />
+                        Yazdır
+                    </button>
+                    <button
+                        onClick={handleExportExcel}
+                        disabled={loading || history.length === 0}
+                        className="btn-ghost px-4 h-[42px] rounded-xl flex items-center justify-center gap-2 shrink-0 border border-white/10 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors text-sm font-medium"
+                    >
+                        <Download size={18} />
+                        Excel'e Aktar
+                    </button>
+                    <button
+                        onClick={loadHistory}
+                        disabled={loading}
+                        className="btn-primary px-4 h-[42px] rounded-xl flex items-center justify-center gap-2 shrink-0 text-sm font-medium"
+                    >
+                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                        Yenile
+                    </button>
+                </div>
             </div>
 
             {/* Table */}
@@ -184,10 +263,10 @@ export default function CourierHistoryTable() {
                                             </td>
                                             <td className="py-3 px-4 text-right">
                                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${isFull
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                        : isOver
-                                                            ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                                                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                    : isOver
+                                                        ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                                                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
                                                     }`}>
                                                     {isFull ? <CheckCircle2 size={14} /> : isOver ? <ChevronDown size={14} className="rotate-180" /> : <XCircle size={14} />}
                                                     {isFull ? 'Tam' : isOver ? 'Fazla' : 'Eksik'}

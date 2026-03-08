@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
@@ -10,8 +11,8 @@ const router = Router();
 // - Son stok ve stok değeri: Products tablosundaki Stock ve CostPrice
 router.get('/', async (req, res) => {
   try {
-    const db = getDb();
-    if (!db) {
+    const pool = await getDb();
+    if (!pool) {
       return res.status(503).json({ error: 'Database not available' });
     }
 
@@ -26,27 +27,28 @@ router.get('/', async (req, res) => {
     const ed = endDate || sd;
 
     // Ana sorgu: ürün bazında alım/satım toplamları
-    const rows = db
-      .prepare(
-        `
+    const result = await pool.request()
+      .input('sd', sql.NVarChar, sd)
+      .input('ed', sql.NVarChar, ed)
+      .query(`
         WITH PurchaseAgg AS (
           SELECT
             ii.ProductID,
-            IFNULL(SUM(ii.Qty), 0)        AS PurchaseQty,
-            IFNULL(SUM(ii.Qty * ii.UnitPrice), 0) AS PurchaseTotal
+            COALESCE(SUM(ii.Qty), 0)        AS PurchaseQty,
+            COALESCE(SUM(ii.Qty * ii.UnitPrice), 0) AS PurchaseTotal
           FROM InvoiceItems ii
           JOIN Invoices i ON i.ID = ii.InvoiceID
-          WHERE date(i.CreatedAt) BETWEEN date(?) AND date(?)
+          WHERE CAST(i.CreatedAt AS DATE) BETWEEN CAST(@sd AS DATE) AND CAST(@ed AS DATE)
           GROUP BY ii.ProductID
         ),
         SalesAgg AS (
           SELECT
             si.ProductID,
-            IFNULL(SUM(si.Qty), 0)        AS SalesQty,
-            IFNULL(SUM(si.Qty * si.UnitPrice), 0) AS SalesTotal
+            COALESCE(SUM(si.Qty), 0)        AS SalesQty,
+            COALESCE(SUM(si.Qty * si.UnitPrice), 0) AS SalesTotal
           FROM SaleItems si
           JOIN Sales s ON s.ID = si.SaleID
-          WHERE date(s.CreatedAt) BETWEEN date(?) AND date(?)
+          WHERE CAST(s.CreatedAt AS DATE) BETWEEN CAST(@sd AS DATE) AND CAST(@ed AS DATE)
           GROUP BY si.ProductID
         ),
         FirstBarcode AS (
@@ -63,23 +65,21 @@ router.get('/', async (req, res) => {
           fb.Barcode,
           p.Stock,
           p.CostPrice,
-          IFNULL(pa.PurchaseQty, 0)   AS PurchaseQty,
-          IFNULL(pa.PurchaseTotal, 0) AS PurchaseTotal,
-          IFNULL(sa.SalesQty, 0)      AS SalesQty,
-          IFNULL(sa.SalesTotal, 0)    AS SalesTotal,
+          COALESCE(pa.PurchaseQty, 0)   AS PurchaseQty,
+          COALESCE(pa.PurchaseTotal, 0) AS PurchaseTotal,
+          COALESCE(sa.SalesQty, 0)      AS SalesQty,
+          COALESCE(sa.SalesTotal, 0)    AS SalesTotal,
           (p.Stock * p.CostPrice)     AS StockValue
         FROM Products p
         LEFT JOIN PurchaseAgg pa ON pa.ProductID = p.ID
         LEFT JOIN SalesAgg sa    ON sa.ProductID = p.ID
         LEFT JOIN FirstBarcode fb ON fb.ProductID = p.ID
-        WHERE IFNULL(p.IsDeleted, 0) = 0
-      `
-      )
-      .all(sd, ed, sd, ed);
+        WHERE COALESCE(p.IsDeleted, 0) = 0
+      `);
+
+    let filtered = result.recordset;
 
     // JS tarafında metin filtresi ve işlem filtresi
-    let filtered = rows;
-
     if (groupOrProduct && groupOrProduct.trim() !== '') {
       const q = groupOrProduct.trim().toLowerCase();
       filtered = filtered.filter(

@@ -3,9 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import {
     ArrowLeft, FileText, User, Package, ClipboardList,
-    Printer, Banknote
+    Printer, Banknote, Download
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import { exportToExcel } from '../lib/excelExport';
+import { printReport } from '../lib/printExport';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -66,6 +68,27 @@ export default function InvoiceDetailPage() {
         }
     };
 
+    const getColumns = () => [
+        { header: '#', key: 'Index', formatter: (_, __, i) => i + 1 },
+        { header: 'Stok Adı', key: 'ProductName' },
+        { header: 'Miktar', key: 'Qty' },
+        { header: 'KDV', key: 'VatRate', formatter: (v) => v || 0 },
+        { header: 'KDV Dah/Har', key: 'VatType', formatter: (v) => v || 'Hariç' },
+        { header: 'Birim Fiyat', key: 'UnitPrice', formatter: (v) => fmtMoney(v) },
+        { header: 'İsk 1 (%)', key: 'Disc1', formatter: (v) => v || 0 },
+        { header: 'İsk 2 (%)', key: 'Disc2', formatter: (v) => v || 0 },
+        { header: 'İsk 3 (%)', key: 'Disc3', formatter: (v) => v || 0 },
+        { header: 'Toplam', key: 'Total', formatter: (_, row) => fmtMoney(row.RowTotal || (row.Qty * row.UnitPrice)) }
+    ];
+
+    const handleWebPrint = () => {
+        printReport(items, getColumns(), { title: `Fatura Detayı: ${invoice.InvoiceNo || '#' + invoice.ID}` });
+    };
+
+    const handleExportExcel = () => {
+        exportToExcel(items, getColumns(), `Fatura_${invoice.InvoiceNo || invoice.ID}`);
+    };
+
     return (
         <div className="flex flex-col h-[calc(100vh-2rem)] gap-4 w-full text-text-primary">
             {/* Ribbon / Top Bar */}
@@ -84,8 +107,11 @@ export default function InvoiceDetailPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-white/5 hover:bg-white/10 text-text-primary transition-all cursor-pointer">
+                    <button onClick={handleWebPrint} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 transition-all cursor-pointer">
                         <Printer size={16} /> <span className="hidden sm:inline">Yazdır</span>
+                    </button>
+                    <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all cursor-pointer">
+                        <Download size={16} /> <span className="hidden sm:inline">Excel</span>
                     </button>
                 </div>
             </div>
@@ -228,7 +254,7 @@ export default function InvoiceDetailPage() {
             <div className="glass-card rounded-2xl p-5 shrink-0 grid grid-cols-1 md:grid-cols-2 gap-4 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-cyan-900/10 via-bg-dark to-bg-dark border border-white/10 relative overflow-hidden">
                 <div className="flex flex-col justify-center relative z-10">
                     <span className="text-[11px] font-bold text-text-muted uppercase tracking-widest mb-1 flex items-center gap-1"><Banknote size={14} className="inline mr-1" />Ödeme Tipi</span>
-                    <span className="font-semibold text-emerald-400 text-lg">{invoice.PaymentMethod === 'Card' ? 'Kredi Kartı' : 'Nakit'}</span>
+                    <span className={`font-semibold text-lg ${invoice.PaymentMethod === 'Account' ? 'text-violet-400' : 'text-emerald-400'}`}>{invoice.PaymentMethod === 'Card' ? 'Kredi Kartı' : invoice.PaymentMethod === 'Account' ? 'Cari Hesap' : 'Nakit'}</span>
                 </div>
                 <div className="flex flex-col gap-2 relative z-10 items-end justify-center w-full">
                     <div className="w-full max-w-[350px] flex flex-col gap-2">

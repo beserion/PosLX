@@ -72,12 +72,17 @@ export default function CourierPage() {
     };
 
     // Harita merkezini belirle: İlk kuryenin konumu yoksa Türkiye geneli
-    const activeCouriers = couriers.filter(c =>
-        c.Status !== 'Offline' &&
-        ((c.lat !== undefined || c.Lat !== undefined) && (c.lng !== undefined || c.Lng !== undefined))
-    );
+    const activeCouriers = couriers.filter(c => {
+        const hasLat = typeof c.lat === 'number' || typeof c.Lat === 'number';
+        const hasLng = typeof c.lng === 'number' || typeof c.Lng === 'number';
+        return c.Status !== 'Offline' && hasLat && hasLng;
+    });
+
     const mapCenter = activeCouriers.length > 0
-        ? [activeCouriers[0].lat || activeCouriers[0].Lat, activeCouriers[0].lng || activeCouriers[0].Lng]
+        ? [
+            activeCouriers[0].lat !== undefined ? activeCouriers[0].lat : activeCouriers[0].Lat,
+            activeCouriers[0].lng !== undefined ? activeCouriers[0].lng : activeCouriers[0].Lng
+        ]
         : [41.0082, 28.9784]; // Istanbul
 
     return (
@@ -110,7 +115,10 @@ export default function CourierPage() {
                         {activeCouriers.map(c => (
                             <Marker
                                 key={c.ID}
-                                position={[c.lat || c.Lat, c.lng || c.Lng]}
+                                position={[
+                                    c.lat !== undefined ? c.lat : c.Lat,
+                                    c.lng !== undefined ? c.lng : c.Lng
+                                ]}
                                 icon={createCourierIcon(c.Status)}
                             >
                                 <Popup className="courier-popup">

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
@@ -7,8 +8,8 @@ const router = Router();
 // Belirli kurye + tarih için satış özetini ve varsa kayıtlı mutabakatı döner
 router.get('/summary', async (req, res) => {
   try {
-    const db = getDb();
-    if (!db) return res.status(503).json({ error: 'Database not available' });
+    const pool = await getDb();
+    if (!pool) return res.status(503).json({ error: 'Database not available' });
 
     const courierId = Number(req.query.courierId || 0);
     const date = req.query.date || new Date().toISOString().slice(0, 10);
@@ -17,42 +18,39 @@ router.get('/summary', async (req, res) => {
       return res.status(400).json({ error: 'courierId is required' });
     }
 
-    const summary = db
-      .prepare(
-        `
+    const summaryResult = await pool.request()
+      .input('date', sql.NVarChar, date)
+      .input('courierId', sql.Int, courierId)
+      .query(`
         SELECT
           c.ID           AS CourierID,
           c.Name         AS CourierName,
-          IFNULL(COUNT(s.ID), 0) AS ServiceCount,
-          IFNULL(SUM(s.TotalAmount), 0) AS Turnover,
-          IFNULL(SUM(CASE WHEN s.PaymentMethod = 'Cash' THEN s.TotalAmount ELSE 0 END), 0) AS CashAmount,
-          IFNULL(SUM(CASE WHEN s.PaymentMethod = 'Card' THEN s.TotalAmount ELSE 0 END), 0) AS PosAmount
+          COALESCE(COUNT(s.ID), 0) AS ServiceCount,
+          COALESCE(SUM(s.TotalAmount), 0) AS Turnover,
+          COALESCE(SUM(CASE WHEN s.PaymentMethod = 'Cash' THEN s.TotalAmount ELSE 0 END), 0) AS CashAmount,
+          COALESCE(SUM(CASE WHEN s.PaymentMethod = 'Card' THEN s.TotalAmount ELSE 0 END), 0) AS PosAmount
         FROM Couriers c
         LEFT JOIN Sales s
           ON s.CourierID = c.ID
-         AND date(s.CreatedAt) = date(?)
-        WHERE c.ID = ?
+         AND CAST(s.CreatedAt AS DATE) = CAST(@date AS DATE)
+        WHERE c.ID = @courierId
         GROUP BY c.ID, c.Name
-      `
-      )
-      .get(date, courierId);
+      `);
 
-    const settlement = db
-      .prepare(
-        `
-        SELECT *
+    const settlementResult = await pool.request()
+      .input('date', sql.NVarChar, date)
+      .input('courierId', sql.Int, courierId)
+      .query(`
+        SELECT TOP 1 *
         FROM CourierSettlements
-        WHERE CourierID = ? AND date(Date) = date(?)
+        WHERE CourierID = @courierId AND CAST(Date AS DATE) = CAST(@date AS DATE)
         ORDER BY Date DESC
-        LIMIT 1
-      `
-      )
-      .get(courierId, date);
+      `);
 
     res.json({
       date,
-      summary: summary || null,
-      settlement: settlement || null,
+      summary: summaryResult.recordset.length > 0 ? summaryResult.recordset[0] : null,
+      settlement: settlementResult.recordset.length > 0 ? settlementResult.recordset[0] : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -62,8 +60,8 @@ router.get('/summary', async (req, res) => {
 // ── POST /api/courier-settlements ──────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const db = getDb();
-    if (!db) return res.status(503).json({ error: 'Database not available' });
+    const pool = await getDb();
+    if (!pool) return res.status(503).json({ error: 'Database not available' });
 
     const {
       CourierID,
@@ -85,38 +83,43 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'CourierID and Date are required' });
     }
 
-    const info = db
-      .prepare(
-        `
+    const result = await pool.request()
+      .input('CourierID', sql.Int, CourierID)
+      .input('Date', sql.NVarChar, Date)
+      .input('CashDelivered', sql.Float, CashDelivered ?? 0)
+      .input('Pos1Amount', sql.Float, Pos1Amount ?? 0)
+      .input('Pos2Amount', sql.Float, Pos2Amount ?? 0)
+      .input('Pos3Amount', sql.Float, Pos3Amount ?? 0)
+      .input('PosTotal', sql.Float, PosTotal ?? 0)
+      .input('Difference', sql.Float, Difference ?? 0)
+      .input('CourierPayment', sql.Float, CourierPayment ?? 0)
+      .input('Turnover', sql.Float, Turnover ?? 0)
+      .input('SalesAmount', sql.Float, SalesAmount ?? 0)
+      .input('ServiceAmount', sql.Float, ServiceAmount ?? 0)
+      .input('ServiceCount', sql.Int, ServiceCount ?? 0)
+      .query(`
         INSERT INTO CourierSettlements (
           CourierID, Date, CashDelivered,
           Pos1Amount, Pos2Amount, Pos3Amount, PosTotal,
           Difference, CourierPayment,
           Turnover, SalesAmount, ServiceAmount, ServiceCount
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-      )
-      .run(
-        CourierID,
-        Date,
-        CashDelivered ?? 0,
-        Pos1Amount ?? 0,
-        Pos2Amount ?? 0,
-        Pos3Amount ?? 0,
-        PosTotal ?? 0,
-        Difference ?? 0,
-        CourierPayment ?? 0,
-        Turnover ?? 0,
-        SalesAmount ?? 0,
-        ServiceAmount ?? 0,
-        ServiceCount ?? 0
-      );
+        ) 
+        OUTPUT INSERTED.ID
+        VALUES (
+          @CourierID, @Date, @CashDelivered,
+          @Pos1Amount, @Pos2Amount, @Pos3Amount, @PosTotal,
+          @Difference, @CourierPayment,
+          @Turnover, @SalesAmount, @ServiceAmount, @ServiceCount
+        )
+      `);
 
-    const created = db
-      .prepare('SELECT * FROM CourierSettlements WHERE ID = ?')
-      .get(info.lastInsertRowid);
+    const newId = result.recordset[0].ID;
 
-    res.status(201).json(created);
+    const created = await pool.request()
+      .input('id', sql.Int, newId)
+      .query('SELECT * FROM CourierSettlements WHERE ID = @id');
+
+    res.status(201).json(created.recordset[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -125,40 +128,37 @@ router.post('/', async (req, res) => {
 // ── GET /api/courier-settlements/history ───────────────────────
 router.get('/history', async (req, res) => {
   try {
-    const db = getDb();
-    if (!db) return res.status(503).json({ error: 'Database not available' });
+    const pool = await getDb();
+    if (!pool) return res.status(503).json({ error: 'Database not available' });
 
     const conditions = [];
-    const params = [];
+
+    const request = pool.request();
 
     if (req.query.courierId) {
-      conditions.push('s.CourierID = ?');
-      params.push(Number(req.query.courierId));
+      conditions.push('s.CourierID = @courierId');
+      request.input('courierId', sql.Int, Number(req.query.courierId));
     }
     if (req.query.startDate) {
-      conditions.push('date(s.Date) >= date(?)');
-      params.push(req.query.startDate);
+      conditions.push('CAST(s.Date AS DATE) >= CAST(@startDate AS DATE)');
+      request.input('startDate', sql.NVarChar, req.query.startDate);
     }
     if (req.query.endDate) {
-      conditions.push('date(s.Date) <= date(?)');
-      params.push(req.query.endDate);
+      conditions.push('CAST(s.Date AS DATE) <= CAST(@endDate AS DATE)');
+      request.input('endDate', sql.NVarChar, req.query.endDate);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const history = db
-      .prepare(
-        `
+    const historyResult = await request.query(`
         SELECT s.*, c.Name as CourierName
         FROM CourierSettlements s
         LEFT JOIN Couriers c ON c.ID = s.CourierID
         ${whereClause}
         ORDER BY s.Date DESC, s.ID DESC
-      `
-      )
-      .all(...params);
+      `);
 
-    res.json(history);
+    res.json(historyResult.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

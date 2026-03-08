@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import MobileNav from './components/layout/MobileNav';
 import { ToastProvider } from './components/ui/ToastProvider';
 import OfflineBanner from './components/ui/OfflineBanner';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useAuthStore } from './store/authStore';
+import LoginPage from './pages/LoginPage';
 import POSPage from './pages/POSPage';
 import ProductsPage from './pages/ProductsPage';
 import CourierPage from './pages/CourierPage';
@@ -23,8 +25,30 @@ import CancellationLogsPage from './pages/CancellationLogsPage';
 import ProductDashboardPage from './pages/ProductDashboardPage';
 import SettingsPage from './pages/SettingsPage';
 
+// Cashier can only access POS page
+function isCashier(user) {
+  return user?.Role === 'Cashier';
+}
+
+// Guard wrapper: redirects Cashier to / if they try other routes
+function ManagerRoute({ children }) {
+  const user = useAuthStore((s) => s.user);
+  if (isCashier(user)) return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = !!user;
+
+  if (!isAuthenticated) {
+    return (
+      <ToastProvider>
+        <LoginPage />
+      </ToastProvider>
+    );
+  }
 
   return (
     <ToastProvider>
@@ -32,26 +56,28 @@ export default function App() {
         <OfflineBanner />
         <div className="flex min-h-screen">
           {!isMobile && <Sidebar />}
-          <main className={`flex-1 p-4 ${isMobile ? 'pb-20' : 'ml-[72px]'}`}>
+          <main className={`flex-1 p-4 ${isMobile ? 'pb-20' : 'ml-[100px]'}`}>
             <Routes>
               <Route path="/" element={<POSPage />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/products/:id/dashboard" element={<ProductDashboardPage />} />
+              <Route path="/products" element={<ManagerRoute><ProductsPage /></ManagerRoute>} />
+              <Route path="/products/:id/dashboard" element={<ManagerRoute><ProductDashboardPage /></ManagerRoute>} />
               <Route path="/couriers" element={<CourierPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
-              <Route path="/invoices" element={<InvoicesPage />} />
-              <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-              <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/accounts/:id" element={<AccountDetailPage />} />
-              <Route path="/low-stock" element={<LowStockPage />} />
-              <Route path="/stock-movements" element={<StockMovementsPage />} />
-              <Route path="/courier-settlement" element={<CourierSettlementPage />} />
-              <Route path="/special-prices" element={<SpecialPricesPage />} />
-              <Route path="/staff" element={<StaffPage />} />
-              <Route path="/cancellations" element={<CancellationLogsPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/dashboard" element={<ManagerRoute><DashboardPage /></ManagerRoute>} />
+              <Route path="/transactions" element={<ManagerRoute><TransactionsPage /></ManagerRoute>} />
+              <Route path="/invoices" element={<ManagerRoute><InvoicesPage /></ManagerRoute>} />
+              <Route path="/invoices/:id" element={<ManagerRoute><InvoiceDetailPage /></ManagerRoute>} />
+              <Route path="/accounts" element={<ManagerRoute><AccountsPage /></ManagerRoute>} />
+              <Route path="/accounts/:id" element={<ManagerRoute><AccountDetailPage /></ManagerRoute>} />
+              <Route path="/low-stock" element={<ManagerRoute><LowStockPage /></ManagerRoute>} />
+              <Route path="/stock-movements" element={<ManagerRoute><StockMovementsPage /></ManagerRoute>} />
+              <Route path="/courier-settlement" element={<ManagerRoute><CourierSettlementPage /></ManagerRoute>} />
+              <Route path="/special-prices" element={<ManagerRoute><SpecialPricesPage /></ManagerRoute>} />
+              <Route path="/staff" element={<ManagerRoute><StaffPage /></ManagerRoute>} />
+              <Route path="/cancellations" element={<ManagerRoute><CancellationLogsPage /></ManagerRoute>} />
+              <Route path="/orders" element={<ManagerRoute><OrdersPage /></ManagerRoute>} />
+              <Route path="/settings" element={<ManagerRoute><SettingsPage /></ManagerRoute>} />
+              {/* Catch-all: redirect to POS */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
           {isMobile && <MobileNav />}

@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
 // ── GET /api/transactions — list transactions with date range ──
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 return res.json(getMockTransactions());
             }
@@ -16,23 +17,26 @@ router.get('/', async (req, res) => {
 
         const { startDate, endDate } = req.query;
 
-        let rows;
+        let result;
         if (startDate && endDate) {
-            rows = db.prepare(`
+            result = await pool.request()
+                .input('startDate', sql.NVarChar, startDate)
+                .input('endDate', sql.NVarChar, endDate)
+                .query(`
                 SELECT * FROM AccountTransactions
-                WHERE date(CreatedAt) BETWEEN date(?) AND date(?)
+                WHERE CAST(CreatedAt AS DATE) BETWEEN CAST(@startDate AS DATE) AND CAST(@endDate AS DATE)
                 ORDER BY CreatedAt DESC
-            `).all(startDate, endDate);
+            `);
         } else {
             // Default: today
-            rows = db.prepare(`
+            result = await pool.request().query(`
                 SELECT * FROM AccountTransactions
-                WHERE date(CreatedAt) = date('now', 'localtime')
+                WHERE CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE)
                 ORDER BY CreatedAt DESC
-            `).all();
+            `);
         }
 
-        res.json(rows);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -41,8 +45,8 @@ router.get('/', async (req, res) => {
 // ── GET /api/transactions/daily-report — summary for a date range ──
 router.get('/daily-report', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 return res.json({
                     totalIncome: 1250.00,
@@ -61,43 +65,52 @@ router.get('/daily-report', async (req, res) => {
         const ed = endDate || sd;
 
         // Aggregates
-        const totals = db.prepare(`
+        const totalsResult = await pool.request()
+            .input('sd', sql.NVarChar, sd)
+            .input('ed', sql.NVarChar, ed)
+            .query(`
             SELECT
-                IFNULL(SUM(CASE WHEN Type IN ('Sale','Adjustment') AND Amount > 0 THEN Amount ELSE 0 END), 0) AS totalIncome,
-                IFNULL(SUM(CASE WHEN Type IN ('Expense','Refund','Purchase') OR Amount < 0 THEN ABS(Amount) ELSE 0 END), 0) AS totalExpense,
-                IFNULL(SUM(Amount), 0) AS netAmount,
+                COALESCE(SUM(CASE WHEN Type IN ('Sale','Adjustment') AND Amount > 0 THEN Amount ELSE 0 END), 0) AS totalIncome,
+                COALESCE(SUM(CASE WHEN Type IN ('Expense','Refund','Purchase') OR Amount < 0 THEN ABS(Amount) ELSE 0 END), 0) AS totalExpense,
+                COALESCE(SUM(Amount), 0) AS netAmount,
                 COUNT(*) AS transactionCount
             FROM AccountTransactions
-            WHERE date(CreatedAt) BETWEEN date(?) AND date(?)
-        `).get(sd, ed);
+            WHERE CAST(CreatedAt AS DATE) BETWEEN CAST(@sd AS DATE) AND CAST(@ed AS DATE)
+        `);
 
         // Breakdown by payment method
-        const byPayment = db.prepare(`
-            SELECT PaymentMethod, IFNULL(SUM(Amount), 0) AS total
+        const byPaymentResult = await pool.request()
+            .input('sd', sql.NVarChar, sd)
+            .input('ed', sql.NVarChar, ed)
+            .query(`
+            SELECT PaymentMethod, COALESCE(SUM(Amount), 0) AS total
             FROM AccountTransactions
-            WHERE date(CreatedAt) BETWEEN date(?) AND date(?)
+            WHERE CAST(CreatedAt AS DATE) BETWEEN CAST(@sd AS DATE) AND CAST(@ed AS DATE)
             GROUP BY PaymentMethod
-        `).all(sd, ed);
+        `);
 
         const byPaymentMethod = {};
-        for (const row of byPayment) {
+        for (const row of byPaymentResult.recordset) {
             byPaymentMethod[row.PaymentMethod] = row.total;
         }
 
         // Breakdown by type
-        const byTypeRows = db.prepare(`
-            SELECT Type, IFNULL(SUM(Amount), 0) AS total, COUNT(*) AS count
+        const byTypeResult = await pool.request()
+            .input('sd', sql.NVarChar, sd)
+            .input('ed', sql.NVarChar, ed)
+            .query(`
+            SELECT Type, COALESCE(SUM(Amount), 0) AS total, COUNT(*) AS count
             FROM AccountTransactions
-            WHERE date(CreatedAt) BETWEEN date(?) AND date(?)
+            WHERE CAST(CreatedAt AS DATE) BETWEEN CAST(@sd AS DATE) AND CAST(@ed AS DATE)
             GROUP BY Type
-        `).all(sd, ed);
+        `);
 
         const byType = {};
-        for (const row of byTypeRows) {
+        for (const row of byTypeResult.recordset) {
             byType[row.Type] = { total: row.total, count: row.count };
         }
 
-        res.json({ ...totals, byPaymentMethod, byType });
+        res.json({ ...totalsResult.recordset[0], byPaymentMethod, byType });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -112,18 +125,42 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Type and Amount are required' });
         }
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const createTx = db.transaction(() => {
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        let txId;
+        try {
             // Find account by name
-            const account = Counterparty ? db.prepare('SELECT * FROM Accounts WHERE Name = ?').get(Counterparty) : null;
-            const accountID = account ? account.ID : null;
+            let accountID = null;
+            if (Counterparty) {
+                const reqAccount = new sql.Request(transaction);
+                const accountResult = await reqAccount
+                    .input('Counterparty', sql.NVarChar, Counterparty)
+                    .query('SELECT * FROM Accounts WHERE Name = @Counterparty');
+                if (accountResult.recordset.length > 0) {
+                    accountID = accountResult.recordset[0].ID;
+                }
+            }
 
-            const info = db.prepare(
-                `INSERT INTO AccountTransactions (Type, Amount, Description, Counterparty, AccountID, PaymentMethod)
-                 VALUES (?, ?, ?, ?, ?, ?)`
-            ).run(Type, Amount, Description || null, Counterparty || null, accountID, PaymentMethod || 'Cash');
+            const reqTx = new sql.Request(transaction);
+            const accountIdType = accountID ? sql.Int : sql.Int;
+            const insertResult = await reqTx
+                .input('Type', sql.NVarChar, Type)
+                .input('Amount', sql.Float, Amount)
+                .input('Description', sql.NVarChar, Description || null)
+                .input('Counterparty', sql.NVarChar, Counterparty || null)
+                .input('AccountID', accountIdType, accountID)
+                .input('PaymentMethod', sql.NVarChar, PaymentMethod || 'Cash')
+                .query(`
+                    INSERT INTO AccountTransactions (Type, Amount, Description, Counterparty, AccountID, PaymentMethod)
+                    OUTPUT INSERTED.ID
+                    VALUES (@Type, @Amount, @Description, @Counterparty, @AccountID, @PaymentMethod)
+                `);
+
+            txId = insertResult.recordset[0].ID;
 
             // Cari hareket kaydı
             if (accountID) {
@@ -131,23 +168,38 @@ router.post('/', async (req, res) => {
                 const ledgerType = isDebt ? 'Borç' : 'Alacak';
                 const ledgerAmount = Math.abs(Amount);
 
-                db.prepare(
-                    `INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType, RefID)
-                     VALUES (?, ?, ?, ?, 'Manual', ?)`
-                ).run(accountID, ledgerType, ledgerAmount, Description || `${Type} işlemi`, info.lastInsertRowid);
+                const reqLedger = new sql.Request(transaction);
+                await reqLedger
+                    .input('AccountID', sql.Int, accountID)
+                    .input('ledgerType', sql.NVarChar, ledgerType)
+                    .input('ledgerAmount', sql.Float, ledgerAmount)
+                    .input('Description', sql.NVarChar, Description || `${Type} işlemi`)
+                    .input('txId', sql.Int, txId)
+                    .query(`
+                        INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType, RefID)
+                        VALUES (@AccountID, @ledgerType, @ledgerAmount, @Description, 'Manual', @txId)
+                    `);
 
                 // Borç = bakiye artar, Alacak = bakiye azalır
                 const balanceChange = isDebt ? ledgerAmount : -ledgerAmount;
-                db.prepare('UPDATE Accounts SET Balance = Balance + ? WHERE ID = ?')
-                    .run(balanceChange, accountID);
+                const reqAccountUpdate = new sql.Request(transaction);
+                await reqAccountUpdate
+                    .input('balanceChange', sql.Float, balanceChange)
+                    .input('AccountID', sql.Int, accountID)
+                    .query('UPDATE Accounts SET Balance = Balance + @balanceChange WHERE ID = @AccountID');
             }
 
-            return info.lastInsertRowid;
-        });
+            await transaction.commit();
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
 
-        const txId = createTx();
-        const created = db.prepare('SELECT * FROM AccountTransactions WHERE ID = ?').get(txId);
-        res.status(201).json(created);
+        const createdResult = await pool.request()
+            .input('id', sql.Int, txId)
+            .query('SELECT * FROM AccountTransactions WHERE ID = @id');
+
+        res.status(201).json(createdResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

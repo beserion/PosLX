@@ -6,8 +6,11 @@ import CategoryManagerModal from '../components/products/CategoryManagerModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Search, Edit2, Trash2, Package, ScanBarcode,
-    AlertTriangle, ArrowUpDown, Tag
+    AlertTriangle, ArrowUpDown, Tag, Download
 } from 'lucide-react';
+import { exportToExcel } from '../lib/excelExport';
+import { printReport } from '../lib/printExport';
+import { Printer } from 'lucide-react';
 
 export default function ProductsPage() {
     const products = usePosStore((s) => s.products);
@@ -122,6 +125,40 @@ export default function ProductsPage() {
                         className="btn-ghost flex items-center gap-2"
                     >
                         <Tag size={16} /> Kategoriler
+                    </button>
+                    <button
+                        onClick={() => {
+                            const columns = [
+                                { header: 'Barkod', key: 'Barcodes', formatter: (v) => (v || []).join(', ') },
+                                { header: 'Ürün Adı', key: 'Name' },
+                                { header: 'Kategori', key: 'Category' },
+                                { header: 'Maliyet (₺)', key: 'CostPrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Satış Fiyatı (₺)', key: 'SalePrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Stok', key: 'Stock' },
+                            ];
+                            printReport(filtered, columns, { title: 'Ürün Listesi Raporu' });
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer"
+                    >
+                        <Printer size={16} /> Yazdır
+                    </button>
+                    <button
+                        onClick={() => exportToExcel(
+                            filtered,
+                            [
+                                { header: 'Barkod', key: 'Barcodes', formatter: (v) => (v || []).join(', ') },
+                                { header: 'Ürün Adı', key: 'Name' },
+                                { header: 'Kategori', key: 'Category' },
+                                { header: 'Maliyet (₺)', key: 'CostPrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Satış Fiyatı (₺)', key: 'SalePrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Stok', key: 'Stock' },
+                            ],
+                            'Urunler',
+                            { title: 'Ürün Listesi Raporu' }
+                        )}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                    >
+                        <Download size={16} /> Excel'e Aktar
                     </button>
                     <button
                         onClick={() => { setEditingProduct(null); setModalOpen(true); }}

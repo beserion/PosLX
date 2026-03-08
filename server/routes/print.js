@@ -1,6 +1,7 @@
 import express from 'express';
 import { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine } from 'node-thermal-printer';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = express.Router();
 
@@ -28,16 +29,27 @@ router.post('/', async (req, res) => {
         }
 
         // Fetch user settings
-        const db = getDb();
+        const pool = await getDb();
         const settings = {};
-        if (db) {
-            const rows = db.prepare('SELECT key, value FROM system_settings').all();
-            for (const r of rows) settings[r.key] = r.value;
+        if (pool) {
+            const result = await pool.request().query('SELECT [key], [value] FROM system_settings');
+            for (const r of result.recordset) settings[r.key] = r.value;
+        }
+
+        // Determine POS Printer Path
+        let printerPath = '\\\\127.0.0.1\\POS80 Printer'; // Varsayılan
+        if (settings.assignedPosPrinterId) {
+            const printerRes = await pool.request()
+                .input('id', sql.Int, parseInt(settings.assignedPosPrinterId))
+                .query('SELECT Path FROM Printers WHERE ID = @id');
+            if (printerRes.recordset.length > 0 && printerRes.recordset[0].Path) {
+                printerPath = printerRes.recordset[0].Path;
+            }
         }
 
         let printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
-            interface: '\\\\127.0.0.1\\POS80 Printer',
+            interface: printerPath,
             characterSet: CharacterSet.WPC1254_TURKISH,
             removeSpecialCharacters: false,
             lineCharacter: "=",

@@ -1,39 +1,46 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
 // ── GET /api/orders — list all purchase orders ──
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         const { status } = req.query;
-        let rows;
+        let result;
         if (status) {
-            rows = db.prepare(`
-                SELECT po.*,
-                    GROUP_CONCAT(p.Name || ' x' || poi.Qty, ', ') AS ItemsSummary
+            result = await pool.request()
+                .input('status', sql.NVarChar, status)
+                .query(`
+                SELECT po.*, poi.ItemsSummary
                 FROM PurchaseOrders po
-                LEFT JOIN PurchaseOrderItems poi ON poi.PurchaseOrderID = po.ID
-                LEFT JOIN Products p ON p.ID = poi.ProductID
-                WHERE po.Status = ?
-                GROUP BY po.ID
+                LEFT JOIN (
+                    SELECT poi.PurchaseOrderID, STRING_AGG(CAST(p.Name + ' x' + CAST(poi.Qty AS NVARCHAR(MAX)) AS NVARCHAR(MAX)), ', ') AS ItemsSummary
+                    FROM PurchaseOrderItems poi
+                    JOIN Products p ON p.ID = poi.ProductID
+                    GROUP BY poi.PurchaseOrderID
+                ) poi ON poi.PurchaseOrderID = po.ID
+                WHERE po.Status = @status
                 ORDER BY po.CreatedAt DESC
-            `).all(status);
+            `);
         } else {
-            rows = db.prepare(`
-                SELECT po.*,
-                    GROUP_CONCAT(p.Name || ' x' || poi.Qty, ', ') AS ItemsSummary
+            result = await pool.request().query(`
+                SELECT po.*, poi.ItemsSummary
                 FROM PurchaseOrders po
-                LEFT JOIN PurchaseOrderItems poi ON poi.PurchaseOrderID = po.ID
-                LEFT JOIN Products p ON p.ID = poi.ProductID
-                GROUP BY po.ID
+                LEFT JOIN (
+                    SELECT poi.PurchaseOrderID, STRING_AGG(CAST(p.Name + ' x' + CAST(poi.Qty AS NVARCHAR(MAX)) AS NVARCHAR(MAX)), ', ') AS ItemsSummary
+                    FROM PurchaseOrderItems poi
+                    JOIN Products p ON p.ID = poi.ProductID
+                    GROUP BY poi.PurchaseOrderID
+                ) poi ON poi.PurchaseOrderID = po.ID
                 ORDER BY po.CreatedAt DESC
-            `).all();
+            `);
         }
-        res.json(rows);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -42,20 +49,26 @@ router.get('/', async (req, res) => {
 // ── GET /api/orders/:id — single order with items ──
 router.get('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const order = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(req.params.id);
-        if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const orderResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
 
-        const items = db.prepare(`
+        if (orderResult.recordset.length === 0) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const order = orderResult.recordset[0];
+
+        const itemsResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
             SELECT poi.*, p.Name AS ProductName, p.Stock AS CurrentStock, p.CriticalStock
             FROM PurchaseOrderItems poi
             JOIN Products p ON p.ID = poi.ProductID
-            WHERE poi.PurchaseOrderID = ?
-        `).all(req.params.id);
+            WHERE poi.PurchaseOrderID = @id
+        `);
 
-        res.json({ ...order, items });
+        res.json({ ...order, items: itemsResult.recordset });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -69,32 +82,60 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Tedarikçi ve ürün kalemleri zorunludur' });
         }
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const createOrder = db.transaction(() => {
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        let orderID;
+        try {
             const totalAmount = items.reduce((sum, i) => sum + (i.Qty * i.UnitPrice), 0);
-            const account = db.prepare('SELECT * FROM Accounts WHERE Name = ?').get(Counterparty);
-            const accountID = account ? account.ID : null;
 
-            const info = db.prepare(
-                `INSERT INTO PurchaseOrders (Counterparty, AccountID, TotalAmount, Description, PaymentMethod, Status)
-                 VALUES (?, ?, ?, ?, ?, 'Beklemede')`
-            ).run(Counterparty, accountID, totalAmount, Description || null, PaymentMethod || 'Cash');
+            const reqAccount = new sql.Request(transaction);
+            const accountResult = await reqAccount
+                .input('Counterparty', sql.NVarChar, Counterparty)
+                .query('SELECT * FROM Accounts WHERE Name = @Counterparty');
 
-            const orderID = info.lastInsertRowid;
+            const accountID = accountResult.recordset.length > 0 ? accountResult.recordset[0].ID : null;
+
+            const reqOrder = new sql.Request(transaction);
+            let accountIdParamType = accountID ? sql.Int : sql.Int;
+            const orderInsertResult = await reqOrder
+                .input('Counterparty', sql.NVarChar, Counterparty)
+                .input('AccountID', accountIdParamType, accountID)
+                .input('TotalAmount', sql.Float, totalAmount)
+                .input('Description', sql.NVarChar, Description || null)
+                .input('PaymentMethod', sql.NVarChar, PaymentMethod || 'Cash')
+                .query(`
+                    INSERT INTO PurchaseOrders (Counterparty, AccountID, TotalAmount, Description, PaymentMethod, Status)
+                    OUTPUT INSERTED.ID
+                    VALUES (@Counterparty, @AccountID, @TotalAmount, @Description, @PaymentMethod, 'Beklemede')
+                `);
+
+            orderID = orderInsertResult.recordset[0].ID;
+
             for (const item of items) {
-                db.prepare(
-                    'INSERT INTO PurchaseOrderItems (PurchaseOrderID, ProductID, Qty, UnitPrice) VALUES (?, ?, ?, ?)'
-                ).run(orderID, item.ProductID, item.Qty, item.UnitPrice);
+                const reqItem = new sql.Request(transaction);
+                await reqItem
+                    .input('PurchaseOrderID', sql.Int, orderID)
+                    .input('ProductID', sql.Int, item.ProductID)
+                    .input('Qty', sql.Float, item.Qty)
+                    .input('UnitPrice', sql.Float, item.UnitPrice)
+                    .query('INSERT INTO PurchaseOrderItems (PurchaseOrderID, ProductID, Qty, UnitPrice) VALUES (@PurchaseOrderID, @ProductID, @Qty, @UnitPrice)');
             }
 
-            return orderID;
-        });
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
-        const orderID = createOrder();
-        const order = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(orderID);
-        res.status(201).json(order);
+        const createdOrderResult = await pool.request()
+            .input('id', sql.Int, orderID)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
+
+        res.status(201).json(createdOrderResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -103,59 +144,112 @@ router.post('/', async (req, res) => {
 // ── POST /api/orders/:id/receive — mark order as received → create invoice + stock + ledger ──
 router.post('/:id/receive', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const order = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(req.params.id);
-        if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const orderResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
+
+        if (orderResult.recordset.length === 0) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const order = orderResult.recordset[0];
+
         if (order.Status !== 'Beklemede') return res.status(400).json({ error: 'Bu sipariş zaten işlendi' });
 
-        const items = db.prepare('SELECT * FROM PurchaseOrderItems WHERE PurchaseOrderID = ?').all(req.params.id);
+        const itemsResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrderItems WHERE PurchaseOrderID = @id');
+        const items = itemsResult.recordset;
 
-        const receiveOrder = db.transaction(() => {
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        let invoiceID;
+        try {
             // 1. Create invoice
-            const invoiceInfo = db.prepare(
-                `INSERT INTO Invoices (InvoiceNo, Type, Counterparty, TotalAmount, Description, AccountID)
-                 VALUES (?, 'Fatura', ?, ?, ?, ?)`
-            ).run(`SIP-${order.ID}`, order.Counterparty, order.TotalAmount, `Sipariş #${order.ID} teslim alındı`, order.AccountID);
-            const invoiceID = invoiceInfo.lastInsertRowid;
+            const reqInvoice = new sql.Request(transaction);
+            const invoiceInsertResult = await reqInvoice
+                .input('InvoiceNo', sql.NVarChar, `SIP-${order.ID}`)
+                .input('Counterparty', sql.NVarChar, order.Counterparty)
+                .input('TotalAmount', sql.Float, order.TotalAmount)
+                .input('Description', sql.NVarChar, `Sipariş #${order.ID} teslim alındı`)
+                .input('AccountID', sql.Int, order.AccountID)
+                .query(`
+                    INSERT INTO Invoices (InvoiceNo, Type, Counterparty, TotalAmount, Description, AccountID)
+                    OUTPUT INSERTED.ID
+                    VALUES (@InvoiceNo, 'Fatura', @Counterparty, @TotalAmount, @Description, @AccountID)
+                `);
+            invoiceID = invoiceInsertResult.recordset[0].ID;
 
             // 2. Insert invoice items + increment stock
             for (const item of items) {
-                db.prepare('INSERT INTO InvoiceItems (InvoiceID, ProductID, Qty, UnitPrice) VALUES (?, ?, ?, ?)')
-                    .run(invoiceID, item.ProductID, item.Qty, item.UnitPrice);
-                db.prepare('UPDATE Products SET Stock = Stock + ? WHERE ID = ?')
-                    .run(item.Qty, item.ProductID);
+                const reqItem = new sql.Request(transaction);
+                await reqItem
+                    .input('InvoiceID', sql.Int, invoiceID)
+                    .input('ProductID', sql.Int, item.ProductID)
+                    .input('Qty', sql.Float, item.Qty)
+                    .input('UnitPrice', sql.Float, item.UnitPrice)
+                    .query('INSERT INTO InvoiceItems (InvoiceID, ProductID, Qty, UnitPrice) VALUES (@InvoiceID, @ProductID, @Qty, @UnitPrice)');
+
+                const reqStock = new sql.Request(transaction);
+                await reqStock
+                    .input('Qty', sql.Float, item.Qty)
+                    .input('ProductID', sql.Int, item.ProductID)
+                    .query('UPDATE Products SET Stock = Stock + @Qty WHERE ID = @ProductID');
             }
 
             // 3. Account transaction
-            db.prepare(
-                `INSERT INTO AccountTransactions (Type, Amount, Description, Counterparty, InvoiceID, AccountID, PaymentMethod)
-                 VALUES ('Purchase', ?, ?, ?, ?, ?, ?)`
-            ).run(-order.TotalAmount, `Sipariş #${order.ID} — ${order.Counterparty}`, order.Counterparty, invoiceID, order.AccountID, order.PaymentMethod);
+            const reqAccTx = new sql.Request(transaction);
+            await reqAccTx
+                .input('Amount', sql.Float, -order.TotalAmount)
+                .input('Description', sql.NVarChar, `Sipariş #${order.ID} — ${order.Counterparty}`)
+                .input('Counterparty', sql.NVarChar, order.Counterparty)
+                .input('InvoiceID', sql.Int, invoiceID)
+                .input('AccountID', sql.Int, order.AccountID)
+                .input('PaymentMethod', sql.NVarChar, order.PaymentMethod)
+                .query(`
+                    INSERT INTO AccountTransactions (Type, Amount, Description, Counterparty, InvoiceID, AccountID, PaymentMethod)
+                    VALUES ('Purchase', @Amount, @Description, @Counterparty, @InvoiceID, @AccountID, @PaymentMethod)
+                `);
 
             // 4. Cari ledger (borçlanma)
             if (order.AccountID) {
-                db.prepare(
-                    `INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType, RefID)
-                     VALUES (?, 'Borç', ?, ?, 'Invoice', ?)`
-                ).run(order.AccountID, order.TotalAmount, `Sipariş #${order.ID} teslim`, invoiceID);
+                const reqLedger = new sql.Request(transaction);
+                await reqLedger
+                    .input('AccountID', sql.Int, order.AccountID)
+                    .input('Amount', sql.Float, order.TotalAmount)
+                    .input('Description', sql.NVarChar, `Sipariş #${order.ID} teslim`)
+                    .input('InvoiceID', sql.Int, invoiceID)
+                    .query(`
+                        INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType, RefID)
+                        VALUES (@AccountID, 'Borç', @Amount, @Description, 'Invoice', @InvoiceID)
+                    `);
 
-                db.prepare('UPDATE Accounts SET Balance = Balance + ? WHERE ID = ?')
-                    .run(order.TotalAmount, order.AccountID);
+                const reqAccUpdate = new sql.Request(transaction);
+                await reqAccUpdate
+                    .input('Amount', sql.Float, order.TotalAmount)
+                    .input('AccountID', sql.Int, order.AccountID)
+                    .query('UPDATE Accounts SET Balance = Balance + @Amount WHERE ID = @AccountID');
             }
 
             // 5. Update order status
-            db.prepare(
-                `UPDATE PurchaseOrders SET Status = 'Teslim Alındı', InvoiceID = ?, ReceivedAt = datetime('now') WHERE ID = ?`
-            ).run(invoiceID, req.params.id);
+            const reqOrderUpdate = new sql.Request(transaction);
+            await reqOrderUpdate
+                .input('InvoiceID', sql.Int, invoiceID)
+                .input('id', sql.Int, req.params.id)
+                .query(`UPDATE PurchaseOrders SET Status = 'Teslim Alındı', InvoiceID = @InvoiceID, ReceivedAt = GETDATE() WHERE ID = @id`);
 
-            return invoiceID;
-        });
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
-        receiveOrder();
-        const updated = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(req.params.id);
-        res.json(updated);
+        const updatedResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
+
+        res.json(updatedResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -164,14 +258,22 @@ router.post('/:id/receive', async (req, res) => {
 // ── POST /api/orders/:id/cancel — cancel a pending order ──
 router.post('/:id/cancel', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const order = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(req.params.id);
-        if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const orderResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
+
+        if (orderResult.recordset.length === 0) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const order = orderResult.recordset[0];
+
         if (order.Status !== 'Beklemede') return res.status(400).json({ error: 'Sadece bekleyen siparişler iptal edilebilir' });
 
-        db.prepare("UPDATE PurchaseOrders SET Status = 'İptal' WHERE ID = ?").run(req.params.id);
+        await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query("UPDATE PurchaseOrders SET Status = 'İptal' WHERE ID = @id");
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -181,17 +283,35 @@ router.post('/:id/cancel', async (req, res) => {
 // ── DELETE /api/orders/:id — delete order (only pending/cancelled) ──
 router.delete('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const order = db.prepare('SELECT * FROM PurchaseOrders WHERE ID = ?').get(req.params.id);
-        if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const orderResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM PurchaseOrders WHERE ID = @id');
+
+        if (orderResult.recordset.length === 0) return res.status(404).json({ error: 'Sipariş bulunamadı' });
+        const order = orderResult.recordset[0];
         if (order.Status === 'Teslim Alındı') return res.status(400).json({ error: 'Teslim alınmış sipariş silinemez' });
 
-        db.transaction(() => {
-            db.prepare('DELETE FROM PurchaseOrderItems WHERE PurchaseOrderID = ?').run(req.params.id);
-            db.prepare('DELETE FROM PurchaseOrders WHERE ID = ?').run(req.params.id);
-        })();
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            const reqItemsDelete = new sql.Request(transaction);
+            await reqItemsDelete
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM PurchaseOrderItems WHERE PurchaseOrderID = @id');
+
+            const reqOrderDelete = new sql.Request(transaction);
+            await reqOrderDelete
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM PurchaseOrders WHERE ID = @id');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
         res.json({ success: true });
     } catch (err) {

@@ -3,8 +3,10 @@ import { useAccountStore } from '../store/accountStore';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Plus, X, Edit2, Trash2, Search, Phone, MapPin,
-    Building2, User, ArrowUpRight, ArrowDownLeft, Filter, Mail
+    Building2, User, ArrowUpRight, ArrowDownLeft, Filter, Mail, Download, Printer
 } from 'lucide-react';
+import { exportToExcel } from '../lib/excelExport';
+import { printReport } from '../lib/printExport';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,12 +52,50 @@ export default function AccountsPage() {
                             <Users size={10} /> {accounts.length} Kayıt
                         </span>
                     </div>
-                    <button
-                        onClick={() => { setEditingAccount(null); setShowModal(true); }}
-                        className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
-                    >
-                        <Plus size={16} /> Yeni Cari
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                const columns = [
+                                    { header: 'Cari Adı', key: 'Name' },
+                                    { header: 'Tür', key: 'Type' },
+                                    { header: 'Telefon', key: 'Phone', formatter: (v) => v || '—' },
+                                    { header: 'E-Posta', key: 'Email', formatter: (v) => v || '—' },
+                                    { header: 'Vergi Dairesi', key: 'TaxOffice', formatter: (v) => v || '—' },
+                                    { header: 'Vergi No', key: 'TaxNo', formatter: (v) => v || '—' },
+                                    { header: 'Adres', key: 'Address', formatter: (v) => v || '—' },
+                                    { header: 'Bakiye (₺)', key: 'Balance', formatter: (v) => Number(v || 0).toFixed(2) },
+                                ];
+                                printReport(filtered, columns, { title: 'Cari Hesaplar Listesi' });
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer"
+                        >
+                            <Printer size={16} /> Yazdır
+                        </button>
+                        <button
+                            onClick={() => {
+                                const columns = [
+                                    { header: 'Cari Adı', key: 'Name' },
+                                    { header: 'Tür', key: 'Type' },
+                                    { header: 'Telefon', key: 'Phone', formatter: (v) => v || '—' },
+                                    { header: 'E-Posta', key: 'Email', formatter: (v) => v || '—' },
+                                    { header: 'Vergi Dairesi', key: 'TaxOffice', formatter: (v) => v || '—' },
+                                    { header: 'Vergi No', key: 'TaxNo', formatter: (v) => v || '—' },
+                                    { header: 'Adres', key: 'Address', formatter: (v) => v || '—' },
+                                    { header: 'Bakiye (₺)', key: 'Balance', formatter: (v) => Number(v || 0).toFixed(2) },
+                                ];
+                                exportToExcel(filtered, columns, 'Cari_Hesaplar');
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                        >
+                            <Download size={16} /> Excel
+                        </button>
+                        <button
+                            onClick={() => { setEditingAccount(null); setShowModal(true); }}
+                            className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold ml-2"
+                        >
+                            <Plus size={16} /> Yeni Cari
+                        </button>
+                    </div>
                 </div>
 
                 {/* KPI Cards */}

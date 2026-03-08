@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
 // GET /api/categories — list all
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, returning mock categories");
                 return res.json([
@@ -18,8 +19,8 @@ router.get('/', async (req, res) => {
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const rows = db.prepare('SELECT * FROM Categories ORDER BY Name').all();
-        res.json(rows);
+        const result = await pool.request().query('SELECT * FROM Categories ORDER BY Name');
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -31,14 +32,22 @@ router.post('/', async (req, res) => {
         const { Name } = req.body;
         if (!Name || !Name.trim()) return res.status(400).json({ error: 'Name is required' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const info = db.prepare('INSERT INTO Categories (Name) VALUES (?)').run(Name.trim());
-        const created = db.prepare('SELECT * FROM Categories WHERE ID = ?').get(info.lastInsertRowid);
-        res.status(201).json(created);
+        const result = await pool.request()
+            .input('name', sql.NVarChar, Name.trim())
+            .query('INSERT INTO Categories (Name) OUTPUT INSERTED.ID VALUES (@name)');
+
+        const newId = result.recordset[0].ID;
+
+        const created = await pool.request()
+            .input('id', sql.Int, newId)
+            .query('SELECT * FROM Categories WHERE ID = @id');
+
+        res.status(201).json(created.recordset[0]);
     } catch (err) {
-        if (err.message.includes('UNIQUE') || err.message.includes('duplicate')) {
+        if (err.message.includes('UNIQUE') || err.message.includes('duplicate') || err.message.includes('Violation of UNIQUE KEY constraint')) {
             return res.status(409).json({ error: 'Bu kategori zaten mevcut' });
         }
         res.status(500).json({ error: err.message });
@@ -51,28 +60,51 @@ router.put('/:id', async (req, res) => {
         const { Name } = req.body;
         if (!Name || !Name.trim()) return res.status(400).json({ error: 'Name is required' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         // Get old name first for product migration
-        const old = db.prepare('SELECT Name FROM Categories WHERE ID = ?').get(req.params.id);
-        if (!old) return res.status(404).json({ error: 'Category not found' });
+        const oldCheck = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT Name FROM Categories WHERE ID = @id');
 
-        const oldName = old.Name;
+        if (oldCheck.recordset.length === 0) return res.status(404).json({ error: 'Category not found' });
+
+        const oldName = oldCheck.recordset[0].Name;
         const newName = Name.trim();
 
-        const renameTx = db.transaction(() => {
-            // Update category name
-            db.prepare('UPDATE Categories SET Name = ? WHERE ID = ?').run(newName, req.params.id);
-            // Update products with old category name
-            db.prepare('UPDATE Products SET Category = ? WHERE Category = ?').run(newName, oldName);
-        });
-        renameTx();
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        const updated = db.prepare('SELECT * FROM Categories WHERE ID = ?').get(req.params.id);
-        res.json(updated);
+        try {
+            const request = new sql.Request(transaction);
+
+            // Update category name
+            await request
+                .input('newName', sql.NVarChar, newName)
+                .input('id', sql.Int, req.params.id)
+                .query('UPDATE Categories SET Name = @newName WHERE ID = @id');
+
+            // Update products with old category name
+            const request2 = new sql.Request(transaction);
+            await request2
+                .input('newName', sql.NVarChar, newName)
+                .input('oldName', sql.NVarChar, oldName)
+                .query('UPDATE Products SET Category = @newName WHERE Category = @oldName');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
+
+        const updated = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Categories WHERE ID = @id');
+
+        res.json(updated.recordset[0]);
     } catch (err) {
-        if (err.message.includes('UNIQUE') || err.message.includes('duplicate')) {
+        if (err.message.includes('UNIQUE') || err.message.includes('duplicate') || err.message.includes('Violation of UNIQUE KEY constraint')) {
             return res.status(409).json({ error: 'Bu kategori adı zaten kullanılıyor' });
         }
         res.status(500).json({ error: err.message });
@@ -82,20 +114,39 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/categories/:id — delete (move products to 'Genel')
 router.delete('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         // Get category name before deleting
-        const cat = db.prepare('SELECT Name FROM Categories WHERE ID = ?').get(req.params.id);
-        if (!cat) return res.status(404).json({ error: 'Category not found' });
+        const catCheck = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT Name FROM Categories WHERE ID = @id');
 
-        const deleteTx = db.transaction(() => {
+        if (catCheck.recordset.length === 0) return res.status(404).json({ error: 'Category not found' });
+
+        const catName = catCheck.recordset[0].Name;
+
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
             // Move products to 'Genel'
-            db.prepare("UPDATE Products SET Category = 'Genel' WHERE Category = ?").run(cat.Name);
+            const request1 = new sql.Request(transaction);
+            await request1
+                .input('catName', sql.NVarChar, catName)
+                .query("UPDATE Products SET Category = 'Genel' WHERE Category = @catName");
+
             // Delete category
-            db.prepare('DELETE FROM Categories WHERE ID = ?').run(req.params.id);
-        });
-        deleteTx();
+            const request2 = new sql.Request(transaction);
+            await request2
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM Categories WHERE ID = @id');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
         res.json({ success: true });
     } catch (err) {

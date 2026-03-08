@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
@@ -15,10 +16,10 @@ function getMockProducts() {
 
     categories.forEach((cat, catIdx) => {
         cat.items.forEach((item, itemIdx) => {
-            const primaryBarcode = `86900${catIdx + 1}${itemIdx.toString().padStart(3, '0')}`;
+            const primaryBarcode = '86900' + (catIdx + 1) + itemIdx.toString().padStart(3, '0');
             const barcodes = [primaryBarcode];
             if (itemIdx % 3 === 0) {
-                barcodes.push(`ALT${primaryBarcode}`);
+                barcodes.push('ALT' + primaryBarcode);
             }
             mockProducts.push({
                 ID: idCounter++,
@@ -39,23 +40,26 @@ function getMockProducts() {
 // ── GET /api/products — list all products with barcodes ──────
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, returning mock products");
                 return res.json(getMockProducts());
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const rows = db.prepare(`
-            SELECT p.*, GROUP_CONCAT(pb.Barcode) AS BarcodesCsv
+        const result = await pool.request().query(`
+            SELECT p.*, pb.BarcodesCsv
             FROM Products p
-            LEFT JOIN ProductBarcodes pb ON pb.ProductID = p.ID
-            WHERE IFNULL(p.IsDeleted, 0) = 0
-            GROUP BY p.ID
+            LEFT JOIN (
+                SELECT ProductID, STRING_AGG(CAST(Barcode AS NVARCHAR(MAX)), ',') AS BarcodesCsv
+                FROM ProductBarcodes
+                GROUP BY ProductID
+            ) pb ON pb.ProductID = p.ID
+            WHERE COALESCE(p.IsDeleted, 0) = 0
             ORDER BY p.Name
-        `).all();
-        const products = rows.map(row => ({
+        `);
+        const products = result.recordset.map(row => ({
             ...row,
             Barcodes: row.BarcodesCsv ? row.BarcodesCsv.split(',') : [],
             BarcodesCsv: undefined
@@ -69,20 +73,23 @@ router.get('/', async (req, res) => {
 // ── GET /api/products/low-stock — products below critical stock ──
 router.get('/low-stock', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const rows = db.prepare(`
-            SELECT p.*, GROUP_CONCAT(pb.Barcode) AS BarcodesCsv
+        const result = await pool.request().query(`
+            SELECT p.*, pb.BarcodesCsv
             FROM Products p
-            LEFT JOIN ProductBarcodes pb ON pb.ProductID = p.ID
+            LEFT JOIN (
+                SELECT ProductID, STRING_AGG(CAST(Barcode AS NVARCHAR(MAX)), ',') AS BarcodesCsv
+                FROM ProductBarcodes
+                GROUP BY ProductID
+            ) pb ON pb.ProductID = p.ID
             WHERE p.Stock <= p.CriticalStock
-              AND IFNULL(p.IsDeleted, 0) = 0
-            GROUP BY p.ID
-            ORDER BY CAST(p.Stock AS REAL) / MAX(p.CriticalStock, 1) ASC
-        `).all();
+              AND COALESCE(p.IsDeleted, 0) = 0
+            ORDER BY CAST(p.Stock AS FLOAT) / IIF(p.CriticalStock > 1, p.CriticalStock, 1) ASC
+        `);
 
-        const products = rows.map(row => ({
+        const products = result.recordset.map(row => ({
             ...row,
             Barcodes: row.BarcodesCsv ? row.BarcodesCsv.split(',') : [],
             BarcodesCsv: undefined
@@ -96,8 +103,8 @@ router.get('/low-stock', async (req, res) => {
 // ── GET /api/products/barcode/:barcode — lookup by any barcode ──
 router.get('/barcode/:barcode', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 const products = getMockProducts();
                 const found = products.find(p => p.Barcodes.includes(req.params.barcode));
@@ -106,15 +113,21 @@ router.get('/barcode/:barcode', async (req, res) => {
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const row = db.prepare(`
-            SELECT p.*, GROUP_CONCAT(pb2.Barcode) AS BarcodesCsv
+        const result = await pool.request()
+            .input('barcode', sql.NVarChar, req.params.barcode)
+            .query(`
+            SELECT p.*, pb2.BarcodesCsv
             FROM Products p
-            JOIN ProductBarcodes pb ON pb.ProductID = p.ID AND pb.Barcode = ?
-            LEFT JOIN ProductBarcodes pb2 ON pb2.ProductID = p.ID
-            WHERE IFNULL(p.IsDeleted, 0) = 0
-            GROUP BY p.ID
-        `).get(req.params.barcode);
-        if (!row) return res.status(404).json({ error: 'Product not found' });
+            JOIN ProductBarcodes pb ON pb.ProductID = p.ID AND pb.Barcode = @barcode
+            LEFT JOIN (
+                SELECT ProductID, STRING_AGG(CAST(Barcode AS NVARCHAR(MAX)), ',') AS BarcodesCsv
+                FROM ProductBarcodes
+                GROUP BY ProductID
+            ) pb2 ON pb2.ProductID = p.ID
+            WHERE COALESCE(p.IsDeleted, 0) = 0
+        `);
+        if (result.recordset.length === 0) return res.status(404).json({ error: 'Product not found' });
+        const row = result.recordset[0];
         res.json({ ...row, Barcodes: row.BarcodesCsv ? row.BarcodesCsv.split(',') : [], BarcodesCsv: undefined });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -124,34 +137,53 @@ router.get('/barcode/:barcode', async (req, res) => {
 // ── POST /api/products — create product with multiple barcodes ──
 router.post('/', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos, isIngredient } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const insertProduct = db.prepare(
-            `INSERT INTO Products (Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-        );
-        const insertBarcode = db.prepare(
-            'INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (?, ?)'
-        );
-        const getProduct = db.prepare('SELECT * FROM Products WHERE ID = ?');
-
-        const createTx = db.transaction(() => {
-            const info = insertProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null, ShowInPos !== undefined ? ShowInPos : 1);
-            const productId = info.lastInsertRowid;
-            for (const barcode of barcodeList) {
-                insertBarcode.run(productId, barcode);
-            }
-            return getProduct.get(productId);
-        });
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
         try {
-            const product = createTx();
+            const reqProduct = new sql.Request(transaction);
+            const insertResult = await reqProduct
+                .input('Name', sql.NVarChar, Name)
+                .input('Stock', sql.Float, Stock || 0)
+                .input('CostPrice', sql.Float, CostPrice || 0)
+                .input('SalePrice', sql.Float, SalePrice || 0)
+                .input('Category', sql.NVarChar, Category || null)
+                .input('ImageURL', sql.NVarChar, ImageURL || null)
+                .input('ShowInPos', sql.Int, ShowInPos !== undefined ? ShowInPos : 1)
+                // Assuming isIngredient field is available inside Products, if not we fall back to not saving it in order to preserve existing schema.
+                // NOTE: Previous SQLite code didn't save this. 
+                .query(`
+                    INSERT INTO Products(Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos)
+                    OUTPUT INSERTED.ID
+            VALUES(@Name, @Stock, @CostPrice, @SalePrice, @Category, @ImageURL, @ShowInPos)
+                `);
+
+            const productId = insertResult.recordset[0].ID;
+
+            for (const barcode of barcodeList) {
+                const reqBarcode = new sql.Request(transaction);
+                await reqBarcode
+                    .input('ProductID', sql.Int, productId)
+                    .input('Barcode', sql.NVarChar, barcode)
+                    .query('INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (@ProductID, @Barcode)');
+            }
+
+            await transaction.commit();
+
+            const getResult = await pool.request()
+                .input('id', sql.Int, productId)
+                .query('SELECT * FROM Products WHERE ID = @id');
+            const product = getResult.recordset[0];
+
             res.status(201).json({ ...product, Barcodes: barcodeList });
         } catch (innerErr) {
+            await transaction.rollback();
             if (innerErr.message.includes('UNIQUE') || innerErr.message.includes('IX_ProductBarcodes_Barcode')) {
                 return res.status(409).json({ error: 'Bu barkod zaten kullanılıyor' });
             }
@@ -165,36 +197,60 @@ router.post('/', async (req, res) => {
 // ── PUT /api/products/:id — update product + replace barcodes ──
 router.put('/:id', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos, isIngredient } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const updateProduct = db.prepare(
-            `UPDATE Products
-             SET Name = ?, Stock = ?, CostPrice = ?, SalePrice = ?, Category = ?, ImageURL = ?, ShowInPos = ?
-             WHERE ID = ?`
-        );
-        const deleteBarcodes = db.prepare('DELETE FROM ProductBarcodes WHERE ProductID = ?');
-        const insertBarcode = db.prepare('INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (?, ?)');
-        const getProduct = db.prepare('SELECT * FROM Products WHERE ID = ?');
-
-        const updateTx = db.transaction(() => {
-            const info = updateProduct.run(Name, Stock || 0, CostPrice || 0, SalePrice || 0, Category || null, ImageURL || null, ShowInPos !== undefined ? ShowInPos : 1, req.params.id);
-            if (info.changes === 0) return null;
-            deleteBarcodes.run(req.params.id);
-            for (const barcode of barcodeList) {
-                insertBarcode.run(req.params.id, barcode);
-            }
-            return getProduct.get(req.params.id);
-        });
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
         try {
-            const product = updateTx();
-            if (!product) return res.status(404).json({ error: 'Product not found' });
+            const reqUpdate = new sql.Request(transaction);
+            const updateResult = await reqUpdate
+                .input('Name', sql.NVarChar, Name)
+                .input('Stock', sql.Float, Stock || 0)
+                .input('CostPrice', sql.Float, CostPrice || 0)
+                .input('SalePrice', sql.Float, SalePrice || 0)
+                .input('Category', sql.NVarChar, Category || null)
+                .input('ImageURL', sql.NVarChar, ImageURL || null)
+                .input('ShowInPos', sql.Int, ShowInPos !== undefined ? ShowInPos : 1)
+                .input('id', sql.Int, req.params.id)
+                .query(`
+                    UPDATE Products
+                    SET Name = @Name, Stock = @Stock, CostPrice = @CostPrice, SalePrice = @SalePrice, Category = @Category, ImageURL = @ImageURL, ShowInPos = @ShowInPos
+                    WHERE ID = @id
+                `);
+
+            if (updateResult.rowsAffected[0] === 0) {
+                await transaction.rollback();
+                return res.status(404).json({ error: 'Product not found' });
+            }
+
+            const reqDel = new sql.Request(transaction);
+            await reqDel
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM ProductBarcodes WHERE ProductID = @id');
+
+            for (const barcode of barcodeList) {
+                const reqBarcode = new sql.Request(transaction);
+                await reqBarcode
+                    .input('ProductID', sql.Int, req.params.id)
+                    .input('Barcode', sql.NVarChar, barcode)
+                    .query('INSERT INTO ProductBarcodes (ProductID, Barcode) VALUES (@ProductID, @Barcode)');
+            }
+
+            await transaction.commit();
+
+            const getResult = await pool.request()
+                .input('id', sql.Int, req.params.id)
+                .query('SELECT * FROM Products WHERE ID = @id');
+            const product = getResult.recordset[0];
+
             res.json({ ...product, Barcodes: barcodeList });
         } catch (innerErr) {
+            await transaction.rollback();
             if (innerErr.message.includes('UNIQUE') || innerErr.message.includes('IX_ProductBarcodes_Barcode')) {
                 return res.status(409).json({ error: 'Bu barkod zaten kullanılıyor' });
             }
@@ -208,44 +264,56 @@ router.put('/:id', async (req, res) => {
 // ── DELETE /api/products/:id — delete product (soft delete if used in history) ──
 router.delete('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         const id = req.params.id;
 
         // Check if product is referenced in sales or invoices
-        const saleUsage = db
-            .prepare('SELECT COUNT(*) AS cnt FROM SaleItems WHERE ProductID = ?')
-            .get(id);
-        const invoiceUsage = db
-            .prepare('SELECT COUNT(*) AS cnt FROM InvoiceItems WHERE ProductID = ?')
-            .get(id);
+        const saleUsageResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT COUNT(*) AS cnt FROM SaleItems WHERE ProductID = @id');
+        const invoiceUsageResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT COUNT(*) AS cnt FROM InvoiceItems WHERE ProductID = @id');
 
-        const usedInHistory = (saleUsage?.cnt || 0) > 0 || (invoiceUsage?.cnt || 0) > 0;
+        const usedInHistory = (saleUsageResult.recordset[0]?.cnt || 0) > 0 || (invoiceUsageResult.recordset[0]?.cnt || 0) > 0;
 
         if (usedInHistory) {
             // Soft delete: keep history intact, hide product from UI
-            const tx = db.transaction(() => {
-                // Mark product as deleted
-                const info = db
-                    .prepare('UPDATE Products SET IsDeleted = 1 WHERE ID = ?')
-                    .run(id);
-                // Free barcodes so they can be reused
-                db.prepare('DELETE FROM ProductBarcodes WHERE ProductID = ?').run(id);
-                return info;
-            });
+            const transaction = new sql.Transaction(pool);
+            await transaction.begin();
 
-            const info = tx();
-            if (info.changes === 0) {
-                return res.status(404).json({ error: 'Ürün bulunamadı' });
+            try {
+                const reqSoftDel = new sql.Request(transaction);
+                const softDelResult = await reqSoftDel
+                    .input('id', sql.Int, id)
+                    .query('UPDATE Products SET IsDeleted = 1 WHERE ID = @id');
+
+                const reqDelBarcode = new sql.Request(transaction);
+                await reqDelBarcode
+                    .input('id', sql.Int, id)
+                    .query('DELETE FROM ProductBarcodes WHERE ProductID = @id');
+
+                await transaction.commit();
+
+                if (softDelResult.rowsAffected[0] === 0) {
+                    return res.status(404).json({ error: 'Ürün bulunamadı' });
+                }
+
+                return res.json({ success: true, softDeleted: true });
+            } catch (txErr) {
+                await transaction.rollback();
+                throw txErr;
             }
-
-            return res.json({ success: true, softDeleted: true });
         }
 
         // Hard delete if never used
-        const info = db.prepare('DELETE FROM Products WHERE ID = ?').run(id);
-        if (info.changes === 0) {
+        const delResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query('DELETE FROM Products WHERE ID = @id');
+
+        if (delResult.rowsAffected[0] === 0) {
             return res.status(404).json({ error: 'Ürün bulunamadı' });
         }
 
@@ -259,9 +327,12 @@ router.delete('/:id', async (req, res) => {
 router.put('/:id/stock', async (req, res) => {
     try {
         const { stock } = req.body;
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
-        db.prepare('UPDATE Products SET Stock = ? WHERE ID = ?').run(stock, req.params.id);
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
+        await pool.request()
+            .input('stock', sql.Float, stock)
+            .input('id', sql.Int, req.params.id)
+            .query('UPDATE Products SET Stock = @stock WHERE ID = @id');
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -272,18 +343,24 @@ router.put('/:id/stock', async (req, res) => {
 router.get('/:id/dashboard', async (req, res) => {
     try {
         const id = req.params.id;
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const product = db.prepare(`
-            SELECT p.*, GROUP_CONCAT(pb.Barcode) AS BarcodesCsv
+        const productResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+            SELECT p.*, pb.BarcodesCsv
             FROM Products p
-            LEFT JOIN ProductBarcodes pb ON pb.ProductID = p.ID
-            WHERE p.ID = ? AND IFNULL(p.IsDeleted, 0) = 0
-            GROUP BY p.ID
-        `).get(id);
+            LEFT JOIN (
+                SELECT ProductID, STRING_AGG(CAST(Barcode AS NVARCHAR(MAX)), ',') AS BarcodesCsv
+                FROM ProductBarcodes
+                GROUP BY ProductID
+            ) pb ON pb.ProductID = p.ID
+            WHERE p.ID = @id AND COALESCE(p.IsDeleted, 0) = 0
+        `);
 
-        if (!product) return res.status(404).json({ error: 'Product not found' });
+        if (productResult.recordset.length === 0) return res.status(404).json({ error: 'Product not found' });
+        const product = productResult.recordset[0];
         product.Barcodes = product.BarcodesCsv ? product.BarcodesCsv.split(',') : [];
         product.BarcodesCsv = undefined;
 
@@ -295,19 +372,22 @@ router.get('/:id/dashboard', async (req, res) => {
             monthLabels.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
         }
 
-        const statsRaw = db.prepare(`
-            SELECT 
-              'sale' as type, strftime('%Y-%m', s.CreatedAt) as month, SUM(si.Qty) as qty
+        const statsResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+            SELECT
+            'sale' as type, FORMAT(s.CreatedAt, 'yyyy-MM') as month, SUM(si.Qty) as qty
             FROM SaleItems si JOIN Sales s ON s.ID = si.SaleID
-            WHERE si.ProductID = ? AND s.CreatedAt >= date('now', '-5 months', 'start of month')
-            GROUP BY month
+            WHERE si.ProductID = @id AND s.CreatedAt >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 5, 0)
+            GROUP BY FORMAT(s.CreatedAt, 'yyyy-MM')
             UNION ALL
-            SELECT 
-              'purchase' as type, strftime('%Y-%m', i.CreatedAt) as month, SUM(ii.Qty) as qty
+            SELECT
+            'purchase' as type, FORMAT(i.CreatedAt, 'yyyy-MM') as month, SUM(ii.Qty) as qty
             FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID
-            WHERE ii.ProductID = ? AND i.CreatedAt >= date('now', '-5 months', 'start of month')
-            GROUP BY month
-        `).all(id, id);
+            WHERE ii.ProductID = @id AND i.CreatedAt >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 5, 0)
+            GROUP BY FORMAT(i.CreatedAt, 'yyyy-MM')
+                `);
+        const statsRaw = statsResult.recordset;
 
         const chartData = monthLabels.map(m => {
             const sRow = statsRaw.find(r => r.type === 'sale' && r.month === m);
@@ -320,21 +400,24 @@ router.get('/:id/dashboard', async (req, res) => {
 
             return {
                 rawMonth: m,
-                monthName: `${monthName} ${year.slice(-2)}`,
+                monthName: monthName + ' ' + year.slice(-2),
                 salesQty: sRow ? sRow.qty : 0,
                 purchaseQty: pRow ? pRow.qty : 0
             };
         });
 
-        const metrics = db.prepare(`
+        const metricsResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
             SELECT
-              (SELECT IFNULL(SUM(si.Qty), 0) FROM SaleItems si WHERE si.ProductID = ?) as totalSalesQty,
-              (SELECT IFNULL(SUM(si.Qty * si.UnitPrice), 0) FROM SaleItems si WHERE si.ProductID = ?) as totalSalesRevenue,
-              (SELECT MAX(s.CreatedAt) FROM SaleItems si JOIN Sales s ON s.ID = si.SaleID WHERE si.ProductID = ?) as lastSaleDate,
-              (SELECT IFNULL(SUM(ii.Qty), 0) FROM InvoiceItems ii WHERE ii.ProductID = ?) as totalPurchaseQty,
-              (SELECT IFNULL(SUM(ii.Qty * ii.UnitPrice), 0) FROM InvoiceItems ii WHERE ii.ProductID = ?) as totalPurchaseCost,
-              (SELECT MAX(i.CreatedAt) FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID WHERE ii.ProductID = ?) as lastPurchaseDate
-        `).get(id, id, id, id, id, id);
+                (SELECT COALESCE(SUM(si.Qty), 0) FROM SaleItems si WHERE si.ProductID = @id) as totalSalesQty,
+                (SELECT COALESCE(SUM(si.Qty * si.UnitPrice), 0) FROM SaleItems si WHERE si.ProductID = @id) as totalSalesRevenue,
+            (SELECT MAX(s.CreatedAt) FROM SaleItems si JOIN Sales s ON s.ID = si.SaleID WHERE si.ProductID = @id) as lastSaleDate,
+        (SELECT COALESCE(SUM(ii.Qty), 0) FROM InvoiceItems ii WHERE ii.ProductID = @id) as totalPurchaseQty,
+            (SELECT COALESCE(SUM(ii.Qty * ii.UnitPrice), 0) FROM InvoiceItems ii WHERE ii.ProductID = @id) as totalPurchaseCost,
+                (SELECT MAX(i.CreatedAt) FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID WHERE ii.ProductID = @id) as lastPurchaseDate
+                    `);
+        const metrics = metricsResult.recordset[0];
 
         res.json({ product, chartData, metrics });
     } catch (err) {

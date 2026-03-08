@@ -165,32 +165,30 @@ export default function CheckoutList({ onClose }) {
                     </div>
                 </div>
 
+                {/* Extra Actions */}
+                {serviceFeeSetting > 0 && (
+                    <div className="px-5 py-3 border-t border-glass-border">
+                        <div className="flex items-center justify-between bg-surface-dark rounded-xl p-1.5 border border-glass-border">
+                            <button
+                                onClick={addServiceFee}
+                                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold text-text-primary hover:bg-emerald-accent/10 hover:text-emerald-accent transition-colors"
+                            >
+                                <Plus size={16} /> Servis Ücreti Ekle (₺{serviceFeeSetting})
+                            </button>
+                            {serviceFeeCount > 0 && (
+                                <div className="flex items-center gap-3 px-3 border-l border-glass-border ml-1">
+                                    <button onClick={removeServiceFee} className="text-text-muted hover:text-danger p-1 transition-colors">
+                                        <Minus size={16} />
+                                    </button>
+                                    <span className="font-bold text-emerald-accent w-4 text-center">{serviceFeeCount}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Totals & Discounts */}
                 <div className="px-5 py-4 border-t border-glass-border space-y-2">
-                    {serviceFeeSetting > 0 && (
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-glass-border/30">
-                            <span className="text-sm font-semibold text-text-secondary">Servis Ücreti (₺{serviceFeeSetting})</span>
-                            <div className="flex items-center gap-2">
-                                {serviceFeeCount > 0 && (
-                                    <button
-                                        onClick={removeServiceFee}
-                                        className="w-7 h-7 rounded-lg glass-card flex items-center justify-center text-text-muted hover:text-danger"
-                                    >
-                                        <Minus size={14} />
-                                    </button>
-                                )}
-                                {serviceFeeCount > 0 && (
-                                    <span className="text-sm font-bold w-4 text-center">{serviceFeeCount}</span>
-                                )}
-                                <button
-                                    onClick={addServiceFee}
-                                    className="w-7 h-7 rounded-lg glass-card flex items-center justify-center text-text-muted hover:text-emerald-accent"
-                                >
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
                     <div className="flex justify-between items-center text-sm text-text-secondary">
                         <span>İndirim (₺)</span>
                         <input

@@ -1,29 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useStaffStore } from '../store/staffStore';
-import { Users, Plus, X, KeyRound, LogIn, LogOut } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+import { Users, Plus, X } from 'lucide-react';
 
 export default function StaffPage() {
-  const { staff, currentStaff, fetchStaff, createStaff, updateStaff, deleteStaff, loginWithPin, logout } =
+  const { staff, fetchStaff, createStaff, updateStaff, deleteStaff } =
     useStaffStore();
+  const currentUser = useAuthStore((s) => s.user);
 
   const [showModal, setShowModal] = useState(false);
-  const [loginPin, setLoginPin] = useState('');
 
   useEffect(() => {
     fetchStaff();
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!loginPin) return;
-    try {
-      await loginWithPin(loginPin);
-      setLoginPin('');
-      alert('Giriş başarılı.');
-    } catch (err) {
-      alert(err.response?.data?.error || err.message);
-    }
-  };
+
 
   return (
     <>
@@ -37,34 +28,6 @@ export default function StaffPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <form onSubmit={handleLogin} className="flex items-center gap-2">
-              <div className="flex items-center gap-1 glass-card-static px-2 py-1.5 rounded-xl">
-                <KeyRound size={14} className="text-text-muted" />
-                <input
-                  type="password"
-                  placeholder="PIN"
-                  value={loginPin}
-                  onChange={(e) => setLoginPin(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-text-primary w-20"
-                />
-              </div>
-              <button
-                type="submit"
-                className="glass-card-static px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
-              >
-                <LogIn size={14} /> Giriş
-              </button>
-            </form>
-
-            {currentStaff && (
-              <button
-                onClick={logout}
-                className="glass-card-static px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 text-text-muted hover:text-text-primary"
-              >
-                <LogOut size={14} /> Çıkış
-              </button>
-            )}
-
             <button
               onClick={() => setShowModal(true)}
               className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
@@ -74,11 +37,11 @@ export default function StaffPage() {
           </div>
         </div>
 
-        {currentStaff && (
+        {currentUser && (
           <div className="glass-card p-3 rounded-2xl text-sm flex items-center gap-2">
             <span className="text-text-muted">Aktif Kullanıcı:</span>
             <span className="font-semibold text-text-primary">
-              {currentStaff.Name} ({currentStaff.Role})
+              {currentUser.Name} ({currentUser.Role})
             </span>
           </div>
         )}
@@ -109,9 +72,8 @@ export default function StaffPage() {
                     <td className="py-2 pr-3 text-text-muted">{s.Role}</td>
                     <td className="py-2 pr-3">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
-                          s.IsActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-300'
-                        }`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${s.IsActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-300'
+                          }`}
                       >
                         {s.IsActive ? 'Aktif' : 'Pasif'}
                       </span>

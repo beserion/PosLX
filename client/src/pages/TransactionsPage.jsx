@@ -3,9 +3,11 @@ import { useTransactionStore } from '../store/transactionStore';
 import {
     Receipt, TrendingUp, TrendingDown, DollarSign, Calendar,
     Plus, X, Printer, CreditCard, Banknote, ArrowUpCircle, ArrowDownCircle,
-    Clock, Hash, ShoppingBag, User
+    Clock, Hash, ShoppingBag, User, Download
 } from 'lucide-react';
 import { useAccountStore } from '../store/accountStore';
+import { printReport } from '../lib/printExport';
+import { exportToExcel } from '../lib/excelExport';
 
 // ─── Type helpers ────────────────────────────────────────────
 const typeConfig = {
@@ -99,10 +101,42 @@ export default function TransactionsPage() {
 
                         <button
                             id="btn-print-report"
-                            onClick={() => window.print()}
-                            className="glass-card-static flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                            onClick={() => {
+                                const columns = [
+                                    { header: 'Tarih', key: 'CreatedAt', formatter: (v) => isRange ? fmtDate(v) : '' },
+                                    { header: 'Saat', key: 'CreatedAt', formatter: (v) => fmtTime(v) },
+                                    { header: 'Tür', key: 'Type', formatter: (v) => typeConfig[v]?.label || 'Bilinmiyor' },
+                                    { header: 'Cari', key: 'Counterparty', formatter: (v) => v || '—' },
+                                    { header: 'Açıklama', key: 'Description', formatter: (v) => v ? v.split(' | ')[0] : '—' },
+                                    { header: 'Ödeme', key: 'PaymentMethod', formatter: (v) => v === 'Cash' ? 'Nakit' : 'Kart' },
+                                    { header: 'Tutar (₺)', key: 'Amount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                ];
+                                if (!isRange) columns.shift(); // Remove Date column if single day
+                                printReport(transactions, columns, { title: 'Hesap Hareketleri Raporu' });
+                            }}
+                            className="glass-card-static flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer"
                         >
                             <Printer size={16} /> Yazdır
+                        </button>
+
+                        <button
+                            id="btn-export-excel"
+                            onClick={() => {
+                                const columns = [
+                                    { header: 'Tarih', key: 'CreatedAt', formatter: (v) => isRange ? fmtDate(v) : '' },
+                                    { header: 'Saat', key: 'CreatedAt', formatter: (v) => fmtTime(v) },
+                                    { header: 'Tür', key: 'Type', formatter: (v) => typeConfig[v]?.label || 'Bilinmiyor' },
+                                    { header: 'Cari', key: 'Counterparty', formatter: (v) => v || '—' },
+                                    { header: 'Açıklama', key: 'Description', formatter: (v) => v ? v.replace(/\n/g, ' - ') : '—' },
+                                    { header: 'Ödeme', key: 'PaymentMethod', formatter: (v) => v === 'Cash' ? 'Nakit' : 'Kart' },
+                                    { header: 'Tutar (₺)', key: 'Amount', formatter: (v) => Number(v || 0).toFixed(2) },
+                                ];
+                                if (!isRange) columns.shift();
+                                exportToExcel(transactions, columns, 'Hesap_Hareketleri');
+                            }}
+                            className="glass-card-static flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                        >
+                            <Download size={16} /> Excel
                         </button>
                     </div>
                 </div>

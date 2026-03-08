@@ -37,7 +37,7 @@ export default function OfflineBanner() {
                     }}
                 >
                     <WifiOff size={16} />
-                    <span>Çevrimdışı — Satışlar kaydediliyor, bağlantı gelince senkronize edilecek</span>
+                    <span>İnternet bağlantısı yok — Sistem yerel ağ üzerinden sorunsuz çalışmaya devam ediyor</span>
                 </motion.div>
             )}
 

@@ -2,14 +2,15 @@ import { Router } from 'express';
 import { getDb } from '../config/db.js';
 import { courierAuth } from '../middleware/courierAuth.js';
 import { io } from '../index.js';
+import sql from 'mssql';
 
 const router = Router();
 
 // GET /api/couriers — list all couriers
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) {
+        const pool = await getDb();
+        if (!pool) {
             if (process.env.USE_MOCK_DATA === 'true') {
                 console.warn("⚠️ DB not available, returning mock couriers");
                 return res.json([
@@ -19,8 +20,8 @@ router.get('/', async (req, res) => {
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const rows = db.prepare('SELECT * FROM Couriers ORDER BY Name').all();
-        res.json(rows);
+        const result = await pool.request().query('SELECT * FROM Couriers ORDER BY Name');
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -32,14 +33,22 @@ router.post('/', async (req, res) => {
         const { Name, Phone } = req.body;
         if (!Name) return res.status(400).json({ error: 'Name is required' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const info = db.prepare('INSERT INTO Couriers (Name, Phone, Status) VALUES (?, ?, ?)')
-            .run(Name, Phone || '', 'Offline');
+        const result = await pool.request()
+            .input('Name', sql.NVarChar, Name)
+            .input('Phone', sql.NVarChar, Phone || '')
+            .input('Status', sql.NVarChar, 'Offline')
+            .query('INSERT INTO Couriers (Name, Phone, Status) OUTPUT INSERTED.ID VALUES (@Name, @Phone, @Status)');
 
-        const newCourier = db.prepare('SELECT * FROM Couriers WHERE ID = ?').get(info.lastInsertRowid);
-        res.status(201).json(newCourier);
+        const newId = result.recordset[0].ID;
+
+        const createdResult = await pool.request()
+            .input('id', sql.Int, newId)
+            .query('SELECT * FROM Couriers WHERE ID = @id');
+
+        res.status(201).json(createdResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -48,15 +57,38 @@ router.post('/', async (req, res) => {
 // DELETE /api/couriers/:id — remove a courier
 router.delete('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const id = req.params.id;
-        // Clear ALL foreign key references before deleting
-        db.prepare('UPDATE Sales SET CourierID = NULL WHERE CourierID = ?').run(id);
-        db.prepare('DELETE FROM CourierDailyStats WHERE CourierID = ?').run(id);
-        db.prepare('DELETE FROM CourierSettlements WHERE CourierID = ?').run(id);
-        db.prepare('DELETE FROM Couriers WHERE ID = ?').run(id);
+        const id = Number(req.params.id);
+
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // Clear ALL foreign key references before deleting
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, id)
+                .query('UPDATE Sales SET CourierID = NULL WHERE CourierID = @id');
+
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, id)
+                .query('DELETE FROM CourierDailyStats WHERE CourierID = @id');
+
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, id)
+                .query('DELETE FROM CourierSettlements WHERE CourierID = @id');
+
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, id)
+                .query('DELETE FROM Couriers WHERE ID = @id');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
+
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -70,40 +102,59 @@ router.post('/location', courierAuth, async (req, res) => {
         console.log(`📍 Received location POST for Courier ${courierId}: Lat ${latitude}, Lng ${longitude}`);
         if (!courierId) return res.status(400).json({ success: false, error: 'CourierID is required' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ success: false, error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
 
         // Today's date YYYY-MM-DD
         const today = new Date().toISOString().split('T')[0];
 
         // Update or insert daily stats
         if (distanceKm !== undefined || packagesDelivered !== undefined) {
-            const stats = db.prepare('SELECT * FROM CourierDailyStats WHERE CourierID = ? AND Date = ?').get(courierId, today);
-            if (stats) {
+            const statsResult = await pool.request()
+                .input('courierId', sql.Int, courierId)
+                .input('today', sql.NVarChar, today)
+                .query('SELECT * FROM CourierDailyStats WHERE CourierID = @courierId AND Date = @today');
+
+            if (statsResult.recordset.length > 0) {
+                const stats = statsResult.recordset[0];
                 // Update
-                db.prepare(`
-                UPDATE CourierDailyStats
-                SET 
-                  TotalDistanceKm = COALESCE(?, TotalDistanceKm),
-                  PackagesDelivered = COALESCE(?, PackagesDelivered)
-                WHERE ID = ?
-             `).run(distanceKm, packagesDelivered, stats.ID);
+                await pool.request()
+                    .input('distanceKm', sql.Float, distanceKm)
+                    .input('packagesDelivered', sql.Int, packagesDelivered)
+                    .input('statsId', sql.Int, stats.ID)
+                    .query(`
+                        UPDATE CourierDailyStats
+                        SET 
+                          TotalDistanceKm = COALESCE(@distanceKm, TotalDistanceKm),
+                          PackagesDelivered = COALESCE(@packagesDelivered, PackagesDelivered)
+                        WHERE ID = @statsId
+                    `);
             } else {
                 // Insert
-                db.prepare(`
-                INSERT INTO CourierDailyStats (CourierID, Date, TotalDistanceKm, PackagesDelivered)
-                VALUES (?, ?, COALESCE(?, 0), COALESCE(?, 0))
-             `).run(courierId, today, distanceKm, packagesDelivered);
+                await pool.request()
+                    .input('courierId', sql.Int, courierId)
+                    .input('today', sql.NVarChar, today)
+                    .input('distanceKm', sql.Float, distanceKm)
+                    .input('packagesDelivered', sql.Int, packagesDelivered)
+                    .query(`
+                        INSERT INTO CourierDailyStats (CourierID, Date, TotalDistanceKm, PackagesDelivered)
+                        VALUES (@courierId, @today, COALESCE(@distanceKm, 0), COALESCE(@packagesDelivered, 0))
+                    `);
             }
         }
 
         // Persist last known location to Couriers table for initial map load on POS
         if (latitude !== undefined && longitude !== undefined) {
-            db.prepare(`
-                UPDATE Couriers 
-                SET lat = ?, lng = ?, lastSeen = ?
-                WHERE ID = ?
-            `).run(latitude, longitude, Date.now(), courierId);
+            await pool.request()
+                .input('lat', sql.Float, latitude)
+                .input('lng', sql.Float, longitude)
+                .input('lastSeen', sql.Float, Date.now())
+                .input('courierId', sql.Int, courierId)
+                .query(`
+                    UPDATE Couriers 
+                    SET lat = @lat, lng = @lng, lastSeen = @lastSeen
+                    WHERE ID = @courierId
+                `);
         }
 
         // Emit location via Socket to dashboards
@@ -127,21 +178,25 @@ router.post('/location', courierAuth, async (req, res) => {
 router.get('/:id/stats', courierAuth, async (req, res) => {
     try {
         const courierId = req.params.id;
-        const db = getDb();
-        if (!db) return res.status(503).json({ success: false, error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
 
-        // Simple aggregation using sqlite date features
-        const stats = db.prepare(`
+        // MSSQL Date/Time logic translation
+        const statsResult = await pool.request()
+            .input('courierId', sql.Int, courierId)
+            .query(`
             SELECT 
-                SUM(CASE WHEN Date = date('now', 'localtime') THEN PackagesDelivered ELSE 0 END) as dailyPackages,
-                SUM(CASE WHEN Date = date('now', 'localtime') THEN TotalDistanceKm ELSE 0 END) as dailyDistance,
-                SUM(CASE WHEN Date >= date('now', '-6 days', 'localtime') THEN PackagesDelivered ELSE 0 END) as weeklyPackages,
-                SUM(CASE WHEN Date >= date('now', '-6 days', 'localtime') THEN TotalDistanceKm ELSE 0 END) as weeklyDistance,
-                SUM(CASE WHEN substr(Date, 1, 7) = substr(date('now', 'localtime'), 1, 7) THEN PackagesDelivered ELSE 0 END) as monthlyPackages,
-                SUM(CASE WHEN substr(Date, 1, 7) = substr(date('now', 'localtime'), 1, 7) THEN TotalDistanceKm ELSE 0 END) as monthlyDistance
+                SUM(CASE WHEN CAST(Date AS DATE) = CAST(GETDATE() AS DATE) THEN PackagesDelivered ELSE 0 END) as dailyPackages,
+                SUM(CASE WHEN CAST(Date AS DATE) = CAST(GETDATE() AS DATE) THEN TotalDistanceKm ELSE 0 END) as dailyDistance,
+                SUM(CASE WHEN CAST(Date AS DATE) >= CAST(DATEADD(day, -6, GETDATE()) AS DATE) THEN PackagesDelivered ELSE 0 END) as weeklyPackages,
+                SUM(CASE WHEN CAST(Date AS DATE) >= CAST(DATEADD(day, -6, GETDATE()) AS DATE) THEN TotalDistanceKm ELSE 0 END) as weeklyDistance,
+                SUM(CASE WHEN YEAR(CAST(Date AS DATE)) = YEAR(GETDATE()) AND MONTH(CAST(Date AS DATE)) = MONTH(GETDATE()) THEN PackagesDelivered ELSE 0 END) as monthlyPackages,
+                SUM(CASE WHEN YEAR(CAST(Date AS DATE)) = YEAR(GETDATE()) AND MONTH(CAST(Date AS DATE)) = MONTH(GETDATE()) THEN TotalDistanceKm ELSE 0 END) as monthlyDistance
             FROM CourierDailyStats 
-            WHERE CourierID = ?
-        `).get(courierId);
+            WHERE CourierID = @courierId
+        `);
+
+        const stats = statsResult.recordset[0] || {};
 
         res.json({
             success: true,
@@ -157,15 +212,17 @@ router.get('/:id/stats', courierAuth, async (req, res) => {
     }
 });
 
-
 // PUT /api/couriers/:id/status — update status
 router.put('/:id/status', async (req, res) => {
     try {
         const { status } = req.body; // Idle | Delivering | Offline
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        db.prepare('UPDATE Couriers SET Status = ? WHERE ID = ?').run(status, req.params.id);
+        await pool.request()
+            .input('status', sql.NVarChar, status)
+            .input('id', sql.Int, req.params.id)
+            .query('UPDATE Couriers SET Status = @status WHERE ID = @id');
 
         // Notify dashboard clients
         io.of('/couriers').emit('status:changed', { courierID: Number(req.params.id), status });
@@ -184,40 +241,67 @@ router.post('/assign', async (req, res) => {
             return res.status(400).json({ success: false, error: 'courierId and saleIds (array) are required' });
         }
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ success: false, error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
 
-        db.transaction(() => {
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
             // 1. Update CourierID in Sales table for the given saleIds
-            const placeholders = saleIds.map(() => '?').join(',');
-            db.prepare(`UPDATE Sales SET CourierID = ? WHERE ID IN (${placeholders})`)
-                .run(courierId, ...saleIds);
+            const idsList = saleIds.join(','); // Valid if they are definitely integers, OR can use parameters
+
+            const reqSalesUpdate = new sql.Request(transaction);
+            let inClauseQuery = [];
+            saleIds.forEach((id, index) => {
+                reqSalesUpdate.input(`id${index}`, sql.Int, id);
+                inClauseQuery.push(`@id${index}`);
+            });
+            reqSalesUpdate.input('courierId', sql.Int, courierId);
+            await reqSalesUpdate.query(`UPDATE Sales SET CourierID = @courierId WHERE ID IN (${inClauseQuery.join(', ')})`);
 
             // Update courier status
-            db.prepare('UPDATE Couriers SET Status = ? WHERE ID = ?').run('Delivering', courierId);
-        })();
+            const reqCourierUpdate = new sql.Request(transaction);
+            await reqCourierUpdate
+                .input('status', sql.NVarChar, 'Delivering')
+                .input('courierId', sql.Int, courierId)
+                .query('UPDATE Couriers SET Status = @status WHERE ID = @courierId');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
         // 2. Fetch the detailed sales data to send via socket
-        const placeholders = saleIds.map(() => '?').join(',');
-        const salesData = db.prepare(`
+        const fetchRequest = pool.request();
+        let fetchInClause = [];
+        saleIds.forEach((id, index) => {
+            fetchRequest.input(`id${index}`, sql.Int, id);
+            fetchInClause.push(`@id${index}`);
+        });
+
+        const salesDataResult = await fetchRequest.query(`
              SELECT 
                 s.ID as deliveryId, s.ID as saleId, s.TotalAmount as totalAmount, s.PaymentMethod as paymentMethod,
                 a.Name as customerName, a.Phone as customerPhone, a.Address as customerAddress
              FROM Sales s
              LEFT JOIN Accounts a ON s.AccountID = a.ID
-             WHERE s.ID IN (${placeholders})
-        `).all(...saleIds);
-
-        // Fetch items for each sale
-        const getItems = db.prepare(`
-            SELECT p.Name as name, si.Qty as qty, si.UnitPrice as price
-            FROM SaleItems si
-            JOIN Products p ON si.ProductID = p.ID
-            WHERE si.SaleID = ?
+             WHERE s.ID IN (${fetchInClause.join(', ')})
         `);
+        const salesData = salesDataResult.recordset;
 
-        const deliveriesPayload = salesData.map(sale => {
-            const items = getItems.all(sale.saleId);
+        const deliveriesPayload = await Promise.all(salesData.map(async (sale) => {
+            const itemsResult = await pool.request()
+                .input('saleId', sql.Int, sale.saleId)
+                .query(`
+                    SELECT p.Name as name, si.Qty as qty, si.UnitPrice as price
+                    FROM SaleItems si
+                    JOIN Products p ON si.ProductID = p.ID
+                    WHERE si.SaleID = @saleId
+                `);
+            const items = itemsResult.recordset;
+
             return {
                 deliveryId: sale.deliveryId,
                 saleId: sale.saleId,
@@ -231,7 +315,7 @@ router.post('/assign', async (req, res) => {
                 items: items,
                 assignedAt: new Date().toISOString()
             }
-        });
+        }));
 
         // 3. Emit via Socket.io to the specific courier
         io.of('/couriers').emit('new_deliveries', {
@@ -248,6 +332,5 @@ router.post('/assign', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
-
 
 export default router;

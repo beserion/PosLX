@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Calendar, Search, Filter } from 'lucide-react';
+import { Calendar, Search, Filter, Download, Printer } from 'lucide-react';
+import { exportToExcel } from '../lib/excelExport';
+import { printReport } from '../lib/printExport';
 
 function fmtMoney(v) {
   return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -53,12 +55,54 @@ export default function StockMovementsPage() {
             <Filter size={10} /> {rows.length} Kayıt
           </span>
         </div>
-        <button
-          onClick={fetchReport}
-          className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
-        >
-          <Search size={16} /> Raporu Getir
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const columns = [
+                { header: 'Barkod', key: 'Barcode', formatter: (v) => v || '—' },
+                { header: 'İsim', key: 'Name' },
+                { header: 'Grup', key: 'Category', formatter: (v) => v || '—' },
+                { header: 'Stok Adedi', key: 'Stock' },
+                { header: 'Stok Değeri (₺)', key: 'StockValue', formatter: (v) => Number(v || 0).toFixed(2) },
+                { header: 'Alım Miktarı', key: 'PurchaseQty' },
+                { header: 'Alım Değeri (₺)', key: 'PurchaseTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+                { header: 'Satış Miktarı', key: 'SalesQty' },
+                { header: 'Satış Değeri (₺)', key: 'SalesTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+              ];
+              printReport(rows, columns, { title: 'Ürün Hareket (Stok) Raporu' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer"
+          >
+            <Printer size={16} /> Yazdır
+          </button>
+          <button
+            onClick={() => exportToExcel(
+              rows,
+              [
+                { header: 'Barkod', key: 'Barcode', formatter: (v) => v || '—' },
+                { header: 'İsim', key: 'Name' },
+                { header: 'Grup', key: 'Category', formatter: (v) => v || '—' },
+                { header: 'Stok Adedi', key: 'Stock' },
+                { header: 'Stok Değeri (₺)', key: 'StockValue', formatter: (v) => Number(v || 0).toFixed(2) },
+                { header: 'Alım Miktarı', key: 'PurchaseQty' },
+                { header: 'Alım Değeri (₺)', key: 'PurchaseTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+                { header: 'Satış Miktarı', key: 'SalesQty' },
+                { header: 'Satış Değeri (₺)', key: 'SalesTotal', formatter: (v) => Number(v || 0).toFixed(2) },
+              ],
+              'Urun_Hareket_Raporu',
+              { title: 'Ürün Hareket (Stok) Raporu' }
+            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+          >
+            <Download size={16} /> Excel'e Aktar
+          </button>
+          <button
+            onClick={fetchReport}
+            className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
+          >
+            <Search size={16} /> Raporu Getir
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

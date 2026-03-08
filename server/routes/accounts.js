@@ -1,22 +1,25 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
+import sql from 'mssql';
 
 const router = Router();
 
 // ── GET /api/accounts — list all accounts (filter by type) ──
 router.get('/', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         const { type } = req.query; // Müşteri | Tedarikçi
-        let rows;
+        let result;
         if (type) {
-            rows = db.prepare('SELECT * FROM Accounts WHERE Type = ? ORDER BY Name').all(type);
+            result = await pool.request()
+                .input('type', sql.NVarChar, type)
+                .query('SELECT * FROM Accounts WHERE Type = @type ORDER BY Name');
         } else {
-            rows = db.prepare('SELECT * FROM Accounts ORDER BY Type, Name').all();
+            result = await pool.request().query('SELECT * FROM Accounts ORDER BY Type, Name');
         }
-        res.json(rows);
+        res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -25,19 +28,25 @@ router.get('/', async (req, res) => {
 // ── GET /api/accounts/:id — single account with balance ──
 router.get('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const account = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(req.params.id);
-        if (!account) return res.status(404).json({ error: 'Cari bulunamadı' });
+        const accountResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+        if (accountResult.recordset.length === 0) return res.status(404).json({ error: 'Cari bulunamadı' });
+        const account = accountResult.recordset[0];
 
         // Recalculate balance from ledger
-        const balanceData = db.prepare(`
+        const balanceResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
             SELECT
-                IFNULL(SUM(CASE WHEN Type = 'Borç'   THEN Amount ELSE 0 END), 0) AS totalDebt,
-                IFNULL(SUM(CASE WHEN Type = 'Alacak' THEN Amount ELSE 0 END), 0) AS totalCredit
-            FROM AccountLedger WHERE AccountID = ?
-        `).get(req.params.id);
+                COALESCE(SUM(CASE WHEN Type = 'Borç'   THEN Amount ELSE 0 END), 0) AS totalDebt,
+                COALESCE(SUM(CASE WHEN Type = 'Alacak' THEN Amount ELSE 0 END), 0) AS totalCredit
+            FROM AccountLedger WHERE AccountID = @id
+        `);
+        const balanceData = balanceResult.recordset[0];
 
         res.json({
             ...account,
@@ -53,30 +62,40 @@ router.get('/:id', async (req, res) => {
 // ── GET /api/accounts/:id/ledger — ledger entries (date range) ──
 router.get('/:id/ledger', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
         const { startDate, endDate } = req.query;
-        let rows;
+        let result;
+
         if (startDate && endDate) {
-            rows = db.prepare(`
+            result = await pool.request()
+                .input('id', sql.Int, req.params.id)
+                .input('startDate', sql.NVarChar, startDate)
+                .input('endDate', sql.NVarChar, endDate)
+                .query(`
                 SELECT * FROM AccountLedger
-                WHERE AccountID = ? AND date(CreatedAt) BETWEEN date(?) AND date(?)
+                WHERE AccountID = @id AND CAST(CreatedAt AS DATE) BETWEEN CAST(@startDate AS DATE) AND CAST(@endDate AS DATE)
                 ORDER BY CreatedAt DESC
-            `).all(req.params.id, startDate, endDate);
+            `);
         } else {
-            rows = db.prepare(`
-                SELECT * FROM AccountLedger
-                WHERE AccountID = ?
+            result = await pool.request()
+                .input('id', sql.Int, req.params.id)
+                .query(`
+                SELECT TOP 200 * FROM AccountLedger
+                WHERE AccountID = @id
                 ORDER BY CreatedAt DESC
-                LIMIT 200
-            `).all(req.params.id);
+            `);
         }
+        const rows = result.recordset;
 
         // Running balance calculation
-        const allEntries = db.prepare(`
-            SELECT * FROM AccountLedger WHERE AccountID = ? ORDER BY CreatedAt ASC, ID ASC
-        `).all(req.params.id);
+        const allEntriesResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+            SELECT * FROM AccountLedger WHERE AccountID = @id ORDER BY CreatedAt ASC, ID ASC
+        `);
+        const allEntries = allEntriesResult.recordset;
 
         let runningBalance = 0;
         const balanceMap = {};
@@ -102,15 +121,28 @@ router.post('/', async (req, res) => {
         const { Name, Type, Phone, Email, Address, TaxOffice, TaxNo } = req.body;
         if (!Name) return res.status(400).json({ error: 'İsim zorunludur' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const info = db.prepare(
-            'INSERT INTO Accounts (Name, Type, Phone, Email, Address, TaxOffice, TaxNo) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run(Name, Type || 'Müşteri', Phone || null, Email || null, Address || null, TaxOffice || null, TaxNo || null);
+        const insertResult = await pool.request()
+            .input('Name', sql.NVarChar, Name)
+            .input('Type', sql.NVarChar, Type || 'Müşteri')
+            .input('Phone', sql.NVarChar, Phone || null)
+            .input('Email', sql.NVarChar, Email || null)
+            .input('Address', sql.NVarChar, Address || null)
+            .input('TaxOffice', sql.NVarChar, TaxOffice || null)
+            .input('TaxNo', sql.NVarChar, TaxNo || null)
+            .query(`
+                INSERT INTO Accounts (Name, Type, Phone, Email, Address, TaxOffice, TaxNo) 
+                OUTPUT INSERTED.ID
+                VALUES (@Name, @Type, @Phone, @Email, @Address, @TaxOffice, @TaxNo)
+            `);
 
-        const created = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(info.lastInsertRowid);
-        res.status(201).json(created);
+        const createdResult = await pool.request()
+            .input('id', sql.Int, insertResult.recordset[0].ID)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+
+        res.status(201).json(createdResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -120,16 +152,30 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     try {
         const { Name, Type, Phone, Email, Address, TaxOffice, TaxNo } = req.body;
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        db.prepare(
-            'UPDATE Accounts SET Name = ?, Type = ?, Phone = ?, Email = ?, Address = ?, TaxOffice = ?, TaxNo = ? WHERE ID = ?'
-        ).run(Name, Type, Phone || null, Email || null, Address || null, TaxOffice || null, TaxNo || null, req.params.id);
+        await pool.request()
+            .input('Name', sql.NVarChar, Name)
+            .input('Type', sql.NVarChar, Type)
+            .input('Phone', sql.NVarChar, Phone || null)
+            .input('Email', sql.NVarChar, Email || null)
+            .input('Address', sql.NVarChar, Address || null)
+            .input('TaxOffice', sql.NVarChar, TaxOffice || null)
+            .input('TaxNo', sql.NVarChar, TaxNo || null)
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                UPDATE Accounts 
+                SET Name = @Name, Type = @Type, Phone = @Phone, Email = @Email, Address = @Address, TaxOffice = @TaxOffice, TaxNo = @TaxNo 
+                WHERE ID = @id
+            `);
 
-        const updated = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(req.params.id);
-        if (!updated) return res.status(404).json({ error: 'Cari bulunamadı' });
-        res.json(updated);
+        const updatedResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+
+        if (updatedResult.recordset.length === 0) return res.status(404).json({ error: 'Cari bulunamadı' });
+        res.json(updatedResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -138,28 +184,44 @@ router.put('/:id', async (req, res) => {
 // ── DELETE /api/accounts/:id — delete an account (only if balance = 0) ──
 router.delete('/:id', async (req, res) => {
     try {
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const account = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(req.params.id);
-        if (!account) return res.status(404).json({ error: 'Cari bulunamadı' });
+        const accountResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+        if (accountResult.recordset.length === 0) return res.status(404).json({ error: 'Cari bulunamadı' });
 
         // Check for outstanding balance
-        const ledgerSum = db.prepare(`
+        const ledgerSumResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
             SELECT
-                IFNULL(SUM(CASE WHEN Type = 'Borç' THEN Amount ELSE -Amount END), 0) AS balance
-            FROM AccountLedger WHERE AccountID = ?
-        `).get(req.params.id);
+                COALESCE(SUM(CASE WHEN Type = 'Borç' THEN Amount ELSE -Amount END), 0) AS balance
+            FROM AccountLedger WHERE AccountID = @id
+        `);
+        const ledgerSum = ledgerSumResult.recordset[0];
 
         if (Math.abs(ledgerSum.balance) > 0.01) {
             return res.status(400).json({ error: 'Bakiyesi olan cari silinemez' });
         }
 
-        const deleteTx = db.transaction(() => {
-            db.prepare('DELETE FROM AccountLedger WHERE AccountID = ?').run(req.params.id);
-            db.prepare('DELETE FROM Accounts WHERE ID = ?').run(req.params.id);
-        });
-        deleteTx();
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM AccountLedger WHERE AccountID = @id');
+
+            await (new sql.Request(transaction))
+                .input('id', sql.Int, req.params.id)
+                .query('DELETE FROM Accounts WHERE ID = @id');
+
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
 
         res.json({ success: true });
     } catch (err) {
@@ -173,13 +235,19 @@ router.post('/:id/payment', async (req, res) => {
         const { Amount, Description, PaymentMethod } = req.body;
         if (!Amount || Amount <= 0) return res.status(400).json({ error: 'Tutar zorunludur' });
 
-        const db = getDb();
-        if (!db) return res.status(503).json({ error: 'Database not available' });
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
 
-        const account = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(req.params.id);
-        if (!account) return res.status(404).json({ error: 'Cari bulunamadı' });
+        const accountResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+        if (accountResult.recordset.length === 0) return res.status(404).json({ error: 'Cari bulunamadı' });
+        const account = accountResult.recordset[0];
 
-        const recordPayment = db.transaction(() => {
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
             const isSupplier = account.Type === 'Tedarikçi';
             const label = isSupplier ? 'Ödeme' : 'Tahsilat';
             // Tahsilat (Customer pays us) -> reduces their debt -> Alacak
@@ -188,25 +256,47 @@ router.post('/:id/payment', async (req, res) => {
             const balanceMultiplier = isSupplier ? 1 : -1;
 
             // Ledger entry
-            db.prepare(
-                `INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType)
-                 VALUES (?, ?, ?, ?, 'Payment')`
-            ).run(req.params.id, ledgerType, Amount, Description || `${label} — ${account.Name}`);
+            const reqLedger = new sql.Request(transaction);
+            await reqLedger
+                .input('AccountID', sql.Int, req.params.id)
+                .input('Type', sql.NVarChar, ledgerType)
+                .input('Amount', sql.Float, Amount)
+                .input('Description', sql.NVarChar, Description || `${label} — ${account.Name}`)
+                .query(`
+                    INSERT INTO AccountLedger (AccountID, Type, Amount, Description, RefType)
+                    VALUES (@AccountID, @Type, @Amount, @Description, 'Payment')
+                `);
 
             // Update balance
-            db.prepare('UPDATE Accounts SET Balance = Balance + ? WHERE ID = ?')
-                .run(Amount * balanceMultiplier, req.params.id);
+            const reqBalance = new sql.Request(transaction);
+            await reqBalance
+                .input('balanceChange', sql.Float, Amount * balanceMultiplier)
+                .input('id', sql.Int, req.params.id)
+                .query('UPDATE Accounts SET Balance = Balance + @balanceChange WHERE ID = @id');
 
             // Account transaction record
-            db.prepare(
-                `INSERT INTO AccountTransactions (Type, Amount, Description, AccountID, PaymentMethod)
-                 VALUES ('Payment', ?, ?, ?, ?)`
-            ).run(Amount * (isSupplier ? -1 : 1), `${label} — ${account.Name}`, req.params.id, PaymentMethod || 'Cash');
-        });
+            const reqAccTx = new sql.Request(transaction);
+            await reqAccTx
+                .input('Amount', sql.Float, Amount * (isSupplier ? -1 : 1))
+                .input('Description', sql.NVarChar, `${label} — ${account.Name}`)
+                .input('AccountID', sql.Int, req.params.id)
+                .input('PaymentMethod', sql.NVarChar, PaymentMethod || 'Cash')
+                .query(`
+                    INSERT INTO AccountTransactions (Type, Amount, Description, AccountID, PaymentMethod)
+                    VALUES ('Payment', @Amount, @Description, @AccountID, @PaymentMethod)
+                `);
 
-        recordPayment();
-        const updated = db.prepare('SELECT * FROM Accounts WHERE ID = ?').get(req.params.id);
-        res.json(updated);
+            await transaction.commit();
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
+
+        const updatedResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query('SELECT * FROM Accounts WHERE ID = @id');
+
+        res.json(updatedResult.recordset[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
