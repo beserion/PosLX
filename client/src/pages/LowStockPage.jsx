@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAccountStore } from '../store/accountStore';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import {
     AlertTriangle, Package, ArrowRight, Plus, X, Trash2,
@@ -12,10 +12,10 @@ function fmtMoney(v) {
 }
 
 export default function LowStockPage() {
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState([]); // IDs of selected products
-    const [showOrder, setShowOrder] = useState(false);
 
     const fetchLowStock = async () => {
         setLoading(true);
@@ -59,8 +59,15 @@ export default function LowStockPage() {
                     </div>
                     {selected.length > 0 && (
                         <button
-                            onClick={() => setShowOrder(true)}
-                            className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold"
+                            onClick={() => {
+                                navigate('/invoices', {
+                                    state: {
+                                        openNewForm: true,
+                                        initialItems: selectedProducts
+                                    }
+                                });
+                            }}
+                            className="btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold cursor-pointer"
                         >
                             <Send size={16} /> Hızlı Sipariş ({selected.length})
                         </button>
@@ -186,164 +193,8 @@ export default function LowStockPage() {
                     )}
                 </div>
             </div>
-
-            {showOrder && (
-                <QuickOrderModal
-                    products={selectedProducts}
-                    onClose={() => setShowOrder(false)}
-                    onOrdered={() => { setSelected([]); fetchLowStock(); setShowOrder(false); }}
-                />
-            )}
         </>
     );
 }
 
-// ─── Quick Order Modal ───────────────────────────────────────
-function QuickOrderModal({ products, onClose, onOrdered }) {
-    const { accounts, fetchAccounts } = useAccountStore();
-    const toast = useToast();
-    const [counterparty, setCounterparty] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('Cash');
-    const [items, setItems] = useState(
-        products.map(p => ({
-            ProductID: p.ID,
-            Name: p.Name,
-            CurrentStock: p.Stock,
-            CriticalStock: p.CriticalStock,
-            Qty: Math.max(p.CriticalStock * 2 - p.Stock, 1), // smart default
-            UnitPrice: p.CostPrice
-        }))
-    );
-    const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => { fetchAccounts(); }, []);
-
-    const suppliers = accounts.filter(a => a.Type === 'Tedarikçi');
-
-    const updateItem = (idx, field, value) => {
-        const updated = [...items];
-        updated[idx] = { ...updated[idx], [field]: value };
-        setItems(updated);
-    };
-
-    const removeItem = (idx) => {
-        if (items.length <= 1) return;
-        setItems(items.filter((_, i) => i !== idx));
-    };
-
-    const total = items.reduce((s, i) => s + (Number(i.Qty) || 0) * (Number(i.UnitPrice) || 0), 0);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!counterparty) return toast.warning('Tedarikçi seçiniz');
-        setSubmitting(true);
-        try {
-            await api.post('/orders', {
-                Counterparty: counterparty,
-                Description: 'Min stock siparişi',
-                PaymentMethod: paymentMethod,
-                items: items.map(i => ({
-                    ProductID: i.ProductID,
-                    Qty: Number(i.Qty) || 1,
-                    UnitPrice: Number(i.UnitPrice) || 0
-                }))
-            });
-            onOrdered();
-        } catch (err) {
-            toast.error(err.response?.data?.error || err.message);
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-            <form onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit}
-                className="glass-card p-6 rounded-2xl w-full max-w-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-text-primary">Hızlı Sipariş — {items.length} Ürün</h2>
-                    <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors cursor-pointer">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Supplier */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1 col-span-2">
-                        <label className="text-xs text-text-muted font-medium">Tedarikçi *</label>
-                        <select value={counterparty} onChange={(e) => setCounterparty(e.target.value)} required
-                            className="glass-card-static rounded-xl px-3 py-2 text-sm text-text-primary bg-transparent outline-none">
-                            <option value="">Tedarikçi seçin…</option>
-                            {suppliers.map(a => (
-                                <option key={a.ID} value={a.Name}>{a.Name}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Payment method */}
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-text-muted font-medium">Ödeme Yöntemi</label>
-                    <div className="flex gap-2">
-                        <button type="button" onClick={() => setPaymentMethod('Cash')}
-                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer
-                                ${paymentMethod === 'Cash' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50' : 'glass-card-static text-text-muted hover:text-text-primary'}`}>
-                            <Banknote size={16} /> Nakit
-                        </button>
-                        <button type="button" onClick={() => setPaymentMethod('Card')}
-                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer
-                                ${paymentMethod === 'Card' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50' : 'glass-card-static text-text-muted hover:text-text-primary'}`}>
-                            <CreditCard size={16} /> Kart
-                        </button>
-                    </div>
-                </div>
-
-                {/* Items */}
-                <div className="flex flex-col gap-2">
-                    <label className="text-xs text-text-muted font-medium">Sipariş Kalemleri</label>
-                    {items.map((item, idx) => (
-                        <div key={item.ProductID} className="glass-card-static rounded-xl p-3 flex items-center gap-2 flex-wrap">
-                            <div className="flex-1 min-w-[120px]">
-                                <span className="text-sm text-text-primary font-medium">{item.Name}</span>
-                                <div className="text-xs text-text-muted">
-                                    Stok: <span className="text-red-400 font-bold">{item.CurrentStock}</span> / {item.CriticalStock}
-                                </div>
-                            </div>
-                            <div className="w-20">
-                                <input type="number" min="1" value={item.Qty}
-                                    onChange={(e) => updateItem(idx, 'Qty', e.target.value)}
-                                    className="w-full bg-transparent rounded-lg px-2 py-1.5 text-sm text-text-primary outline-none border border-white/10 text-center" />
-                            </div>
-                            <div className="w-28">
-                                <input type="number" step="0.01" min="0" value={item.UnitPrice}
-                                    onChange={(e) => updateItem(idx, 'UnitPrice', e.target.value)}
-                                    placeholder="Birim ₺"
-                                    className="w-full bg-transparent rounded-lg px-2 py-1.5 text-sm text-text-primary outline-none border border-white/10 text-right" />
-                            </div>
-                            <span className="text-sm text-cyan-accent font-bold w-24 text-right">
-                                {fmtMoney((Number(item.Qty) || 0) * (Number(item.UnitPrice) || 0))}
-                            </span>
-                            {items.length > 1 && (
-                                <button type="button" onClick={() => removeItem(idx)}
-                                    className="text-text-muted hover:text-red-400 cursor-pointer">
-                                    <Trash2 size={14} />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                {/* Total + Submit */}
-                <div className="flex items-center justify-between border-t border-white/10 pt-3">
-                    <span className="text-sm text-text-muted">Toplam:</span>
-                    <span className="text-lg font-bold text-cyan-accent">{fmtMoney(total)}</span>
-                </div>
-
-                <button type="submit" disabled={submitting}
-                    className="btn-primary w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-50">
-                    {submitting ? 'Kaydediliyor…' : 'Sipariş Oluştur'}
-                </button>
-            </form>
-        </div>
-    );
-}

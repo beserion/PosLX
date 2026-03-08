@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { usePosStore } from '../store/posStore';
 import { useAccountStore } from '../store/accountStore';
 import api from '../lib/api';
@@ -40,7 +40,14 @@ export default function InvoicesPage() {
         }
     };
 
-    useEffect(() => { fetchInvoices(); }, []);
+    const location = useLocation();
+
+    useEffect(() => {
+        fetchInvoices();
+        if (location.state?.openNewForm) {
+            setView('form');
+        }
+    }, [location.state]);
 
     const handleDelete = async (id) => {
         if (!confirm('Bu faturayı silmek ve stokları geri almak istediğinize emin misiniz?')) return;
@@ -56,9 +63,11 @@ export default function InvoicesPage() {
     if (view === 'form') {
         return (
             <InvoiceForm
+                initialItems={location.state?.initialItems}
                 onClose={() => {
                     setView('list');
                     fetchInvoices();
+                    navigate(location.pathname, { replace: true, state: {} }); // Clear state
                 }}
             />
         );
@@ -246,7 +255,7 @@ export default function InvoicesPage() {
 }
 
 // ── FORM VIEW (ERP Style) ──
-function InvoiceForm({ onClose }) {
+function InvoiceForm({ onClose, initialItems }) {
     const products = usePosStore((s) => s.products);
     const fetchProducts = usePosStore((s) => s.fetchProducts);
     const { accounts, fetchAccounts } = useAccountStore();
@@ -283,7 +292,24 @@ function InvoiceForm({ onClose }) {
     const [internalNote, setInternalNote] = useState('');
 
     // Grid (Items)
-    const [items, setItems] = useState([]);
+    const [items, setItems] = useState(() => {
+        if (initialItems && initialItems.length > 0) {
+            return initialItems.map(p => ({
+                ProductID: p.ID,
+                Name: p.Name,
+                Qty: 1,
+                Unit: 'Adet',
+                OldPrice: p.CostPrice || 0,
+                VatType: 'Hariç',
+                VatRate: 20,
+                UnitPrice: p.CostPrice || p.SalePrice || 0,
+                Disc1: 0,
+                Disc2: 0,
+                Disc3: 0
+            }));
+        }
+        return [];
+    });
     const [barcodeInput, setBarcodeInput] = useState('');
     const [submitting, setSubmitting] = useState(false);
 

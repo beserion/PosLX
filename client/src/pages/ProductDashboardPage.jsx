@@ -13,7 +13,7 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { ArrowLeft, Package, Tag, Layers, TrendingUp, TrendingDown, Clock, Activity, ShoppingBag, Banknote, Calendar } from 'lucide-react';
+import { ArrowLeft, Package, Tag, Layers, TrendingUp, TrendingDown, Clock, Activity, ShoppingBag, Banknote, Calendar, List } from 'lucide-react';
 
 function fmtMoney(v) {
     return `₺${Number(v || 0).toLocaleString('tr-TR', {
@@ -35,6 +35,7 @@ export default function ProductDashboardPage() {
     const [product, setProduct] = useState(null);
     const [chartData, setChartData] = useState([]);
     const [metrics, setMetrics] = useState(null);
+    const [movements, setMovements] = useState([]);
     const [timeRange, setTimeRange] = useState(6); // 1, 3 veya 6 aylık veri kontrolü
     const [chartType, setChartType] = useState('bar'); // 'bar' | 'area'
 
@@ -46,6 +47,7 @@ export default function ProductDashboardPage() {
                 setProduct(data.product);
                 setChartData(data.chartData);
                 setMetrics(data.metrics);
+                setMovements(data.movements || []);
             } catch (err) {
                 console.error('Failed to fetch product dashboard:', err.message);
             } finally {
@@ -338,6 +340,54 @@ export default function ProductDashboardPage() {
                             </AreaChart>
                         )}
                     </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Recent Movements Table */}
+            <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/5 pb-4">
+                    <List size={20} className="text-purple-400" />
+                    Son Ürün Hareketleri (Son 50 İşlem)
+                </h2>
+                <div className="overflow-x-auto">
+                    {movements.length === 0 ? (
+                        <div className="text-center text-text-muted py-6">Henüz işlem bulunmuyor.</div>
+                    ) : (
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-text-muted border-b border-white/5">
+                                    <th className="pb-2 pr-3">Tarih</th>
+                                    <th className="pb-2 pr-3">İşlem Tipi</th>
+                                    <th className="pb-2 pr-3">Miktar</th>
+                                    <th className="pb-2 pr-3">Birim Fiyat</th>
+                                    <th className="pb-2 pr-3">Cari / İlgili Kişi</th>
+                                    <th className="pb-2 pr-3 text-right">Referans</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {movements.map((m, idx) => (
+                                    <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                        <td className="py-2.5 pr-3 text-text-muted">{fmtDate(m.Date)}</td>
+                                        <td className="py-2.5 pr-3">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${m.Type === 'Satış' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                {m.Type}
+                                            </span>
+                                        </td>
+                                        <td className="py-2.5 pr-3 text-white font-medium">{m.Qty}</td>
+                                        <td className="py-2.5 pr-3 text-white">{fmtMoney(m.Price)}</td>
+                                        <td className="py-2.5 pr-3 text-text-secondary">{m.Counterparty || '—'}</td>
+                                        <td className="py-2.5 pr-3 text-right text-text-muted text-xs">
+                                            {m.Type === 'Satış' ? (
+                                                <button onClick={() => navigate(`/transactions?id=${m.RefID}`)} className="hover:text-cyan-accent transition-colors underline decoration-dotted underline-offset-4">{m.RefNo}</button>
+                                            ) : (
+                                                <button onClick={() => navigate(`/invoices/${m.RefID}`)} className="hover:text-cyan-accent transition-colors underline decoration-dotted underline-offset-4">{m.RefNo}</button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>

@@ -139,6 +139,7 @@ async function initSchema(pool) {
       Stock         INT NOT NULL DEFAULT 0,
       CostPrice     FLOAT NOT NULL DEFAULT 0,
       SalePrice     FLOAT NOT NULL DEFAULT 0,
+      Price2        FLOAT NOT NULL DEFAULT 0,
       Category      NVARCHAR(255),
       ImageURL      NVARCHAR(1000),
       CriticalStock INT NOT NULL DEFAULT 5,
@@ -452,6 +453,11 @@ async function initSchema(pool) {
     IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'ShowInPos' AND Object_ID = Object_ID(N'Products'))
     BEGIN
         ALTER TABLE Products ADD ShowInPos INT NOT NULL DEFAULT 1;
+    END
+    
+    IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'Price2' AND Object_ID = Object_ID(N'Products'))
+    BEGIN
+        ALTER TABLE Products ADD Price2 FLOAT NOT NULL DEFAULT 0;
     END
     
     IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'isIngredient' AND Object_ID = Object_ID(N'Products'))

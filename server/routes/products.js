@@ -137,7 +137,7 @@ router.get('/barcode/:barcode', async (req, res) => {
 // ── POST /api/products — create product with multiple barcodes ──
 router.post('/', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos, isIngredient } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Price2, Category, ImageURL, ShowInPos, isIngredient } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
         const pool = await getDb();
@@ -153,15 +153,16 @@ router.post('/', async (req, res) => {
                 .input('Stock', sql.Float, Stock || 0)
                 .input('CostPrice', sql.Float, CostPrice || 0)
                 .input('SalePrice', sql.Float, SalePrice || 0)
+                .input('Price2', sql.Float, Price2 || 0)
                 .input('Category', sql.NVarChar, Category || null)
                 .input('ImageURL', sql.NVarChar, ImageURL || null)
                 .input('ShowInPos', sql.Int, ShowInPos !== undefined ? ShowInPos : 1)
                 // Assuming isIngredient field is available inside Products, if not we fall back to not saving it in order to preserve existing schema.
                 // NOTE: Previous SQLite code didn't save this. 
                 .query(`
-                    INSERT INTO Products(Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos)
+                    INSERT INTO Products(Name, Stock, CostPrice, SalePrice, Price2, Category, ImageURL, ShowInPos)
                     OUTPUT INSERTED.ID
-            VALUES(@Name, @Stock, @CostPrice, @SalePrice, @Category, @ImageURL, @ShowInPos)
+            VALUES(@Name, @Stock, @CostPrice, @SalePrice, @Price2, @Category, @ImageURL, @ShowInPos)
                 `);
 
             const productId = insertResult.recordset[0].ID;
@@ -197,7 +198,7 @@ router.post('/', async (req, res) => {
 // ── PUT /api/products/:id — update product + replace barcodes ──
 router.put('/:id', async (req, res) => {
     try {
-        const { Barcodes, Name, Stock, CostPrice, SalePrice, Category, ImageURL, ShowInPos, isIngredient } = req.body;
+        const { Barcodes, Name, Stock, CostPrice, SalePrice, Price2, Category, ImageURL, ShowInPos, isIngredient } = req.body;
         const barcodeList = Array.isArray(Barcodes) ? Barcodes : (Barcodes ? [Barcodes] : []);
 
         const pool = await getDb();
@@ -213,13 +214,14 @@ router.put('/:id', async (req, res) => {
                 .input('Stock', sql.Float, Stock || 0)
                 .input('CostPrice', sql.Float, CostPrice || 0)
                 .input('SalePrice', sql.Float, SalePrice || 0)
+                .input('Price2', sql.Float, Price2 || 0)
                 .input('Category', sql.NVarChar, Category || null)
                 .input('ImageURL', sql.NVarChar, ImageURL || null)
                 .input('ShowInPos', sql.Int, ShowInPos !== undefined ? ShowInPos : 1)
                 .input('id', sql.Int, req.params.id)
                 .query(`
                     UPDATE Products
-                    SET Name = @Name, Stock = @Stock, CostPrice = @CostPrice, SalePrice = @SalePrice, Category = @Category, ImageURL = @ImageURL, ShowInPos = @ShowInPos
+                    SET Name = @Name, Stock = @Stock, CostPrice = @CostPrice, SalePrice = @SalePrice, Price2 = @Price2, Category = @Category, ImageURL = @ImageURL, ShowInPos = @ShowInPos
                     WHERE ID = @id
                 `);
 
@@ -416,10 +418,45 @@ router.get('/:id/dashboard', async (req, res) => {
         (SELECT COALESCE(SUM(ii.Qty), 0) FROM InvoiceItems ii WHERE ii.ProductID = @id) as totalPurchaseQty,
             (SELECT COALESCE(SUM(ii.Qty * ii.UnitPrice), 0) FROM InvoiceItems ii WHERE ii.ProductID = @id) as totalPurchaseCost,
                 (SELECT MAX(i.CreatedAt) FROM InvoiceItems ii JOIN Invoices i ON i.ID = ii.InvoiceID WHERE ii.ProductID = @id) as lastPurchaseDate
-                    `);
+        `);
         const metrics = metricsResult.recordset[0];
 
-        res.json({ product, chartData, metrics });
+        const movementsResult = await pool.request()
+            .input('id', sql.Int, id)
+            .query(`
+            SELECT TOP 50 * FROM(
+                SELECT 
+                    'Satış' as Type,
+                    s.CreatedAt as Date,
+                    si.Qty as Qty,
+                    si.UnitPrice as Price,
+                    s.ID as RefID,
+                    'Satış #' + CAST(s.ID AS NVARCHAR(255)) as RefNo,
+                    a.Name as Counterparty
+                FROM SaleItems si
+                JOIN Sales s ON s.ID = si.SaleID
+                LEFT JOIN Accounts a ON a.ID = s.AccountID
+                WHERE si.ProductID = @id
+                
+                UNION ALL
+                
+                SELECT 
+                    'Alım' as Type,
+                    i.CreatedAt as Date,
+                    ii.Qty as Qty,
+                    ii.UnitPrice as Price,
+                    i.ID as RefID,
+                    i.InvoiceNo as RefNo,
+                    i.Counterparty as Counterparty
+                FROM InvoiceItems ii
+                JOIN Invoices i ON i.ID = ii.InvoiceID
+                WHERE ii.ProductID = @id
+            ) as Movements
+            ORDER BY Date DESC
+        `);
+        const movements = movementsResult.recordset;
+
+        res.json({ product, chartData, metrics, movements });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

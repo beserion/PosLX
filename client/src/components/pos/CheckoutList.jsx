@@ -14,6 +14,7 @@ export default function CheckoutList({ onClose }) {
     const removeFromCart = usePosStore((s) => s.removeFromCart);
     const paymentMethod = usePosStore((s) => s.paymentMethod);
     const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
+    const getItemPrice = usePosStore((s) => s.getItemPrice);
     const getSubtotal = usePosStore((s) => s.getSubtotal);
     const getTax = usePosStore((s) => s.getTax);
     const getTotal = usePosStore((s) => s.getTotal);
@@ -34,6 +35,7 @@ export default function CheckoutList({ onClose }) {
 
     const [showReceipt, setShowReceipt] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
@@ -69,9 +71,9 @@ export default function CheckoutList({ onClose }) {
             <div className="glass-card-static flex flex-col h-full">
                 {/* Header */}
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-glass-border">
-                    <ShoppingBag size={20} className="text-cyan-accent" />
-                    <h2 className="text-base font-bold text-text-primary">Checkout</h2>
-                    <span className="badge badge-cyan ml-auto">{cart.length} items</span>
+                    <ShoppingBag size={22} className="text-cyan-accent" />
+                    <h2 className="text-lg font-bold text-text-primary">Checkout</h2>
+                    <span className="badge badge-cyan ml-auto text-sm">{cart.length} items</span>
                 </div>
 
                 {/* Barcode */}
@@ -91,9 +93,9 @@ export default function CheckoutList({ onClose }) {
                                 className="flex items-center gap-3 py-2.5 border-b border-glass-border/50"
                             >
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-text-primary truncate">{item.Name}</p>
-                                    <p className="text-xs text-text-muted">
-                                        ₺{(item.EffectivePrice ?? item.SalePrice).toFixed(2)} each
+                                    <p className="text-base font-semibold text-text-primary truncate">{item.Name}</p>
+                                    <p className="text-sm text-text-muted">
+                                        ₺{getItemPrice(item).toFixed(2)} each
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -107,8 +109,8 @@ export default function CheckoutList({ onClose }) {
                                         <Plus size={14} />
                                     </button>
                                 </div>
-                                <span className="text-sm font-bold text-cyan-accent w-16 text-right">
-                                    ₺{((item.EffectivePrice ?? item.SalePrice) * item.qty).toFixed(0)}
+                                <span className="text-base font-bold text-cyan-accent w-20 text-right">
+                                    ₺{(getItemPrice(item) * item.qty).toFixed(0)}
                                 </span>
                                 <button onClick={() => removeFromCart(item.ID)}
                                     className="text-text-muted hover:text-danger transition-colors">
@@ -129,8 +131,8 @@ export default function CheckoutList({ onClose }) {
                 {/* Courier Assignment */}
                 <div className="px-5 py-3 border-t border-glass-border">
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-text-muted flex items-center gap-1">
-                            <Truck size={12} /> Siparişi Kuryeye Ata
+                        <label className="text-sm font-semibold text-text-muted flex items-center gap-1">
+                            <Truck size={14} /> Siparişi Kuryeye Ata
                         </label>
                         <select
                             className="glass-input w-full cursor-pointer bg-surface-dark"
@@ -149,18 +151,18 @@ export default function CheckoutList({ onClose }) {
                 <div className="px-5 py-3 border-t border-glass-border">
                     <div className="flex gap-2">
                         <button onClick={() => setPaymentMethod('Cash')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-base font-medium transition-all
                 ${paymentMethod === 'Cash'
                                     ? 'bg-emerald-accent/15 text-emerald-accent border border-emerald-accent/30'
                                     : 'glass-card text-text-secondary'}`}>
-                            <Banknote size={16} /> Cash
+                            <Banknote size={18} /> Cash
                         </button>
                         <button onClick={() => setPaymentMethod('Card')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-base font-medium transition-all
                 ${paymentMethod === 'Card'
                                     ? 'bg-cyan-accent/15 text-cyan-accent border border-cyan-accent/30'
                                     : 'glass-card text-text-secondary'}`}>
-                            <CreditCard size={16} /> Card
+                            <CreditCard size={18} /> Card
                         </button>
                     </div>
                 </div>
@@ -217,7 +219,7 @@ export default function CheckoutList({ onClose }) {
                             <span>Discount</span><span>- ₺{discountAmount.toFixed(2)}</span>
                         </div>
                     )}
-                    <div className="flex justify-between text-lg font-bold text-text-primary pt-1 mt-1 border-t border-glass-border/30">
+                    <div className="flex justify-between text-xl font-bold text-text-primary pt-1 mt-1 border-t border-glass-border/30">
                         <span>Total</span><span className="text-cyan-accent glow-cyan">₺{getTotal().toFixed(2)}</span>
                     </div>
                 </div>
@@ -226,9 +228,16 @@ export default function CheckoutList({ onClose }) {
                 <div className="px-5 pb-5">
                     <motion.button
                         whileTap={{ scale: 0.97 }}
-                        onClick={handleComplete}
+                        onClick={() => {
+                            if (cart.length === 0) return;
+                            if (checkoutCourierID) {
+                                setShowConfirmModal(true);
+                            } else {
+                                handleComplete();
+                            }
+                        }}
                         disabled={cart.length === 0}
-                        className={`w-full py-3 rounded-xl font-bold text-sm transition-all duration-300
+                        className={`w-full py-4 rounded-xl font-bold text-base transition-all duration-300
               ${cart.length > 0
                                 ? 'btn-success'
                                 : 'bg-white/5 text-text-muted cursor-not-allowed border border-glass-border'}`}
@@ -245,6 +254,47 @@ export default function CheckoutList({ onClose }) {
                 onClose={() => setShowReceipt(false)}
                 autoPrint={true}
             />
+
+            {/* Courier Confirm Modal */}
+            <AnimatePresence>
+                {showConfirmModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-surface-dark border border-glass-border rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+                        >
+                            <div className="p-6 text-center">
+                                <div className="w-16 h-16 rounded-full bg-cyan-accent/20 text-cyan-accent flex items-center justify-center mx-auto mb-4">
+                                    <Truck size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-text-primary mb-2">Kurye Onayı</h3>
+                                <p className="text-text-secondary mb-6">
+                                    Bu siparişi kuryeye atamak ve satışı tamamlamak üzeresiniz. Onaylıyor musunuz?
+                                </p>
+                                <div className="flex gap-3 justify-center">
+                                    <button
+                                        onClick={() => setShowConfirmModal(false)}
+                                        className="flex-1 px-4 py-3 rounded-xl font-semibold text-text-primary bg-white/5 hover:bg-white/10 transition-colors"
+                                    >
+                                        İptal
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowConfirmModal(false);
+                                            handleComplete();
+                                        }}
+                                        className="flex-1 px-4 py-3 rounded-xl font-semibold text-white bg-cyan-accent hover:bg-cyan-accent/90 transition-colors shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                                    >
+                                        Onayla
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </>
     );
 }

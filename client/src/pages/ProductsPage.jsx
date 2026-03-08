@@ -6,11 +6,12 @@ import CategoryManagerModal from '../components/products/CategoryManagerModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Search, Edit2, Trash2, Package, ScanBarcode,
-    AlertTriangle, ArrowUpDown, Tag, Download
+    AlertTriangle, ArrowUpDown, Tag, Download, Eye
 } from 'lucide-react';
 import { exportToExcel } from '../lib/excelExport';
 import { printReport } from '../lib/printExport';
 import { Printer } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function ProductsPage() {
     const products = usePosStore((s) => s.products);
@@ -134,6 +135,7 @@ export default function ProductsPage() {
                                 { header: 'Kategori', key: 'Category' },
                                 { header: 'Maliyet (₺)', key: 'CostPrice', formatter: (v) => Number(v || 0).toFixed(2) },
                                 { header: 'Satış Fiyatı (₺)', key: 'SalePrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Kurye Fiyatı (₺)', key: 'Price2', formatter: (v) => Number(v || 0).toFixed(2) },
                                 { header: 'Stok', key: 'Stock' },
                             ];
                             printReport(filtered, columns, { title: 'Ürün Listesi Raporu' });
@@ -151,6 +153,7 @@ export default function ProductsPage() {
                                 { header: 'Kategori', key: 'Category' },
                                 { header: 'Maliyet (₺)', key: 'CostPrice', formatter: (v) => Number(v || 0).toFixed(2) },
                                 { header: 'Satış Fiyatı (₺)', key: 'SalePrice', formatter: (v) => Number(v || 0).toFixed(2) },
+                                { header: 'Kurye Fiyatı (₺)', key: 'Price2', formatter: (v) => Number(v || 0).toFixed(2) },
                                 { header: 'Stok', key: 'Stock' },
                             ],
                             'Urunler',
@@ -208,6 +211,7 @@ export default function ProductsPage() {
                                 <SortHeader field="Category">Kategori</SortHeader>
                                 <SortHeader field="CostPrice">Maliyet</SortHeader>
                                 <SortHeader field="SalePrice">Satış</SortHeader>
+                                <SortHeader field="Price2">Kurye</SortHeader>
                                 <SortHeader field="Stock">Stok</SortHeader>
                                 <th className="text-right text-xs font-medium text-text-muted uppercase tracking-wider py-3 px-4">
                                     İşlemler
@@ -247,12 +251,22 @@ export default function ProductsPage() {
                                             <span className="text-sm font-bold text-cyan-accent">₺{product.SalePrice}</span>
                                         </td>
                                         <td className="py-3 px-4">
+                                            <span className="text-sm text-cyan-200">₺{product.Price2}</span>
+                                        </td>
+                                        <td className="py-3 px-4">
                                             <span className={`badge ${product.Stock < 20 ? 'badge-danger' : product.Stock < 50 ? 'badge-amber' : 'badge-emerald'}`}>
                                                 {product.Stock}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Link
+                                                    to={`/products/${product.ID}/dashboard`}
+                                                    className="w-8 h-8 rounded-lg glass-card flex items-center justify-center text-text-secondary hover:text-emerald-400 transition-colors"
+                                                    title="Görüntüle"
+                                                >
+                                                    <Eye size={14} />
+                                                </Link>
                                                 <button
                                                     onClick={() => { setEditingProduct(product); setModalOpen(true); }}
                                                     className="w-8 h-8 rounded-lg glass-card flex items-center justify-center text-text-secondary hover:text-cyan-accent transition-colors"

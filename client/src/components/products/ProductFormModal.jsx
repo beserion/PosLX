@@ -13,6 +13,7 @@ const emptyForm = {
     Category: 'Hot Drinks',
     CostPrice: '',
     SalePrice: '',
+    Price2: '',
     Stock: '',
     ImageURL: '',
     ShowInPos: true,
@@ -37,6 +38,7 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
                 Category: editProduct.Category || 'Hot Drinks',
                 CostPrice: String(editProduct.CostPrice || ''),
                 SalePrice: String(editProduct.SalePrice || ''),
+                Price2: String(editProduct.Price2 || ''),
                 Stock: String(editProduct.Stock || ''),
                 ImageURL: editProduct.ImageURL || '',
                 ShowInPos: editProduct.ShowInPos !== undefined ? !!editProduct.ShowInPos : true,
@@ -106,6 +108,7 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
             ...form,
             CostPrice: Number(form.CostPrice) || 0,
             SalePrice: Number(form.SalePrice) || 0,
+            Price2: Number(form.Price2) || 0,
             Stock: Number(form.Stock) || 0,
             ShowInPos: form.ShowInPos ? 1 : 0,
         });
@@ -262,7 +265,7 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
                                 </div>
 
                                 {/* Price Row */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-3 gap-3">
                                     <div>
                                         <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-1 block">
                                             Maliyet Fiyatı (₺)
@@ -290,6 +293,20 @@ export default function ProductFormModal({ isOpen, onClose, onSubmit, editProduc
                                             placeholder="0.00"
                                             className="glass-input w-full"
                                             required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-1 block">
+                                            Kurye Fiyatı (₺)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={form.Price2}
+                                            onChange={(e) => handleChange('Price2', e.target.value)}
+                                            placeholder="0.00"
+                                            className="glass-input w-full"
                                         />
                                     </div>
                                 </div>

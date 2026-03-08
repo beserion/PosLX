@@ -27,7 +27,7 @@ const links = [
     { to: '/low-stock', icon: AlertTriangle, label: 'Min Stock' },
     { to: '/stock-movements', icon: BarChart3, label: 'Ürün Rpr.' },
     { to: '/courier-settlement', icon: Truck, label: 'Kurye Rpr.' },
-    { to: '/special-prices', icon: PercentCircle, label: 'Özel Fiyat' },
+    { to: '/special-prices', icon: PercentCircle, label: 'Kampanyalar' },
     { to: '/staff', icon: Users, label: 'Personel' },
     { to: '/settings', icon: Settings, label: 'Ayarlar' },
 ];

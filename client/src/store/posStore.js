@@ -161,9 +161,17 @@ export const usePosStore = create((set, get) => ({
 
     clearCart: () => set({ cart: [], paymentMethod: 'Cash', checkoutCourierID: null, discountAmount: 0, serviceFeeCount: 0 }),
 
+    getItemPrice: (item) => {
+        const state = get();
+        if (state.checkoutCourierID && item.Price2 > 0) {
+            return item.Price2;
+        }
+        return item.EffectivePrice ?? item.SalePrice;
+    },
+
     getSubtotal: () =>
         get().cart.reduce(
-            (sum, c) => sum + (c.EffectivePrice ?? c.SalePrice) * c.qty,
+            (sum, c) => sum + get().getItemPrice(c) * c.qty,
             0
         ),
     getTax: () => get().getSubtotal() * (get().taxRateSetting / 100), // Adjust tax logic as needed based on net vs gross 
@@ -194,7 +202,7 @@ export const usePosStore = create((set, get) => ({
                 items: state.cart.map((c) => ({
                     productID: c.ID,
                     qty: c.qty,
-                    unitPrice: c.EffectivePrice ?? c.SalePrice,
+                    unitPrice: state.getItemPrice(c),
                 })),
                 paymentMethod: state.paymentMethod,
                 tax,

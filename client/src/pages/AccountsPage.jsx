@@ -138,21 +138,30 @@ export default function AccountsPage() {
                 </div>
 
                 {/* Search + Filter */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
                     <div className="glass-card-static flex items-center gap-2 px-3 py-2 rounded-xl flex-1 min-w-[200px]">
                         <Search size={14} className="text-text-muted" />
                         <input type="text" placeholder="Cari ara..."
                             value={search} onChange={(e) => setSearch(e.target.value)}
                             className="bg-transparent border-none outline-none text-sm text-text-primary flex-1" />
                     </div>
-                    <div className="glass-card-static flex items-center gap-2 px-3 py-2 rounded-xl">
-                        <Filter size={14} className="text-text-muted" />
-                        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-                            className="bg-transparent border-none outline-none text-sm text-text-primary">
-                            <option value="">Tümü</option>
-                            <option value="Müşteri">Müşteriler</option>
-                            <option value="Tedarikçi">Tedarikçiler</option>
-                        </select>
+                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
+                        {[
+                            { value: '', label: 'Tümü' },
+                            { value: 'Müşteri', label: 'Müşteriler' },
+                            { value: 'Tedarikçi', label: 'Tedarikçiler' },
+                        ].map((cat) => (
+                            <button
+                                key={cat.value}
+                                onClick={() => setFilterType(cat.value)}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
+                                    ${filterType === cat.value
+                                        ? 'bg-cyan-accent/15 text-cyan-accent border border-cyan-accent/30'
+                                        : 'glass-card text-text-secondary hover:text-text-primary'}`}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 

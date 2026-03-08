@@ -30,12 +30,12 @@ export default function ProductGrid() {
                         <button
                             key={cat}
                             onClick={() => setActiveCategory(cat)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-base font-medium whitespace-nowrap transition-all duration-200
                 ${activeCategory === cat
                                     ? 'bg-cyan-accent/15 text-cyan-accent border border-cyan-accent/30'
                                     : 'glass-card text-text-secondary hover:text-text-primary'}`}
                         >
-                            <Icon size={14} />
+                            <Icon size={16} />
                             {cat}
                         </button>
                     );
@@ -54,7 +54,7 @@ export default function ProductGrid() {
                             exit={{ opacity: 0, scale: 0.9 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => addToCart(product)}
-                            className="glass-card p-4 flex flex-col items-center gap-2 cursor-pointer text-center group relative h-[140px] overflow-hidden"
+                            className="glass-card p-4 flex flex-col items-center gap-2 cursor-pointer text-center group relative h-[150px] overflow-hidden"
                         >
                             {/* Emoji/icon placeholder */}
                             <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
@@ -64,11 +64,11 @@ export default function ProductGrid() {
                                         product.Category === 'Desserts' ? '🍰' :
                                             product.Category === 'Food' ? '🥪' : '🥐'}
                             </div>
-                            <span className="text-sm font-semibold text-text-primary leading-tight">{product.Name}</span>
-                            <span className="text-base font-bold text-cyan-accent glow-cyan">₺{product.SalePrice}</span>
+                            <span className="text-lg font-semibold text-text-primary leading-tight">{product.Name}</span>
+                            <span className="text-lg font-bold text-cyan-accent glow-cyan">₺{product.SalePrice}</span>
 
                             {/* Stock badge */}
-                            <span className={`badge absolute top-2 right-2 ${product.Stock < 20 ? 'badge-danger' : 'badge-emerald'}`}>
+                            <span className={`badge absolute top-2 right-2 text-sm ${product.Stock < 20 ? 'badge-danger' : 'badge-emerald'}`}>
                                 {product.Stock}
                             </span>
                         </motion.button>
