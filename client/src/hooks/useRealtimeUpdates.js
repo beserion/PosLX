@@ -11,6 +11,7 @@ import { useToast } from './useToast';
 export function useRealtimeUpdates() {
     const addRealtimeSale = useDashboardStore((s) => s.addRealtimeSale);
     const setConnected = useDashboardStore((s) => s.setConnected);
+    const fetchSummary = useDashboardStore((s) => s.fetchSummary);
     const updateStatus = useCourierStore((s) => s.updateStatus);
     const updateLocation = useCourierStore((s) => s.updateLocation);
     const toast = useToast();
@@ -24,9 +25,14 @@ export function useRealtimeUpdates() {
         salesSocket.on('connect', () => setConnected(true));
         salesSocket.on('disconnect', () => setConnected(false));
 
-        // Listen for new sales
+        // Listen for new sales and transactions
         salesSocket.on('sale:new', (data) => {
             addRealtimeSale(data);
+            fetchSummary();
+        });
+
+        salesSocket.on('transaction:new', () => {
+            fetchSummary();
         });
 
         courierSocket.on('status:changed', (data) => {
@@ -41,6 +47,7 @@ export function useRealtimeUpdates() {
 
         return () => {
             salesSocket.off('sale:new');
+            salesSocket.off('transaction:new');
             salesSocket.off('connect');
             salesSocket.off('disconnect');
             courierSocket.off('location:changed');
@@ -48,5 +55,5 @@ export function useRealtimeUpdates() {
             salesSocket.disconnect();
             courierSocket.disconnect();
         };
-    }, [addRealtimeSale, setConnected, updateStatus, updateLocation]);
+    }, [addRealtimeSale, setConnected, updateStatus, updateLocation, fetchSummary]);
 }

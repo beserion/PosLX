@@ -9,6 +9,7 @@ import { useAccountStore } from '../store/accountStore';
 import { printReport } from '../lib/printExport';
 import { exportToExcel } from '../lib/excelExport';
 import { useToast } from '../hooks/useToast';
+import { salesSocket } from '../lib/socket';
 
 // ─── Type helpers ────────────────────────────────────────────
 const typeConfig = {
@@ -49,7 +50,22 @@ export default function TransactionsPage() {
     useEffect(() => {
         fetchTransactions();
         fetchDailyReport();
-    }, []);
+
+        salesSocket.connect();
+
+        const handleUpdate = () => {
+            fetchTransactions();
+            fetchDailyReport();
+        };
+
+        salesSocket.on('transaction:new', handleUpdate);
+        salesSocket.on('sale:new', handleUpdate);
+
+        return () => {
+            salesSocket.off('transaction:new', handleUpdate);
+            salesSocket.off('sale:new', handleUpdate);
+        };
+    }, [fetchTransactions, fetchDailyReport]);
 
     const income = dailyReport?.totalIncome ?? 0;
     const expense = dailyReport?.totalExpense ?? 0;

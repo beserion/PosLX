@@ -196,6 +196,10 @@ router.post('/', async (req, res) => {
             io.of('/couriers').emit('status:changed', { courierID: Number(courierID), status: 'Delivering' });
         }
 
+        // Notify dashboard and other clients that a new sale/transaction occurred
+        io.of('/sales').emit('sale:new', { saleID, totalAmount, paymentMethod });
+        io.of('/sales').emit('transaction:new', { type: 'Sale', saleID, amount: totalAmount });
+
         res.json({ success: true, saleID });
     } catch (err) {
         res.status(500).json({ error: err.message });

@@ -5,6 +5,7 @@ import { usePosStore } from '../store/posStore';
 import { ShoppingBag } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { salesSocket } from '../lib/socket';
 
 export default function POSPage() {
     const isMobile = useMediaQuery('(max-width: 767px)');
@@ -13,7 +14,22 @@ export default function POSPage() {
     const fetchProducts = usePosStore((s) => s.fetchProducts);
     const fetchSpecialPrices = usePosStore((s) => s.fetchSpecialPrices);
 
-    useEffect(() => { fetchProducts(); fetchSpecialPrices(); }, []);
+    useEffect(() => {
+        fetchProducts();
+        fetchSpecialPrices();
+
+        salesSocket.connect();
+
+        const handleUpdate = () => {
+            fetchProducts();
+        };
+
+        salesSocket.on('sale:new', handleUpdate);
+
+        return () => {
+            salesSocket.off('sale:new', handleUpdate);
+        };
+    }, []);
 
     return (
         <div className={`flex ${isMobile ? 'flex-col' : 'gap-4'} h-[calc(100vh-2rem)]`}>

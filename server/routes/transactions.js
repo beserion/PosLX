@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../config/db.js';
 import sql from 'mssql';
+import { io } from '../index.js';
 
 const router = Router();
 
@@ -199,7 +200,11 @@ router.post('/', async (req, res) => {
             .input('id', sql.Int, txId)
             .query('SELECT * FROM AccountTransactions WHERE ID = @id');
 
-        res.status(201).json(createdResult.recordset[0]);
+        const newTx = createdResult.recordset[0];
+        // Notify clients about the new transaction
+        io.of('/sales').emit('transaction:new', newTx);
+
+        res.status(201).json(newTx);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
