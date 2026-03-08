@@ -1,47 +1,110 @@
 import sql from 'mssql';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
+// Harici config.json okuma (Önce CWD'ye, yoksa .exe'nin bulunduğu klasöre bakar)
+let externalConfig = {};
+try {
+  let configPath = path.join(process.cwd(), 'config.json');
+  if (!fs.existsSync(configPath) && process.execPath) {
+    configPath = path.join(path.dirname(process.execPath), 'config.json');
+  }
+
+  if (fs.existsSync(configPath)) {
+    externalConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    console.log(`📂 Harici config.json yapılandırması yüklendi.`);
+  }
+} catch (err) {
+  console.warn('⚠️ config.json okunamadı veya JSON hatalı:', err.message);
+}
+
+// Ortam değişkenini veya config.json'ı okuyan yardımcı fonksiyon (Öncelik config.json'da)
+const getEnvOrConfig = (key) => externalConfig[key] || process.env[key];
+
 // Parse server\instance format
-const rawServer = process.env.DB_SERVER || 'localhost';
+const rawServer = getEnvOrConfig('DB_SERVER') || 'localhost';
 const serverParts = rawServer.split('\\');
 const serverHost = serverParts[0];
 const instanceName = serverParts.length > 1 ? serverParts[1] : undefined;
 
 const config = {
-  user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASS || 'YourPassword123!',
+  user: getEnvOrConfig('DB_USER') || 'sa',
+  password: getEnvOrConfig('DB_PASS') || 'YourPassword123!',
   server: serverHost,
-  database: process.env.DB_NAME || 'poslx',
-  // Named instances use dynamic ports resolved by SQL Browser — don't set port
-  ...(instanceName ? {} : { port: parseInt(process.env.DB_PORT) || 1433 }),
+  database: getEnvOrConfig('DB_NAME') || 'poslx',
+  ...(instanceName ? {} : { port: parseInt(getEnvOrConfig('DB_PORT')) || 1433 }),
   options: {
-    encrypt: process.env.DB_ENCRYPT === 'true',
-    trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE !== 'false',
+    encrypt: String(getEnvOrConfig('DB_ENCRYPT')) === 'true',
+    trustServerCertificate: String(getEnvOrConfig('DB_TRUST_SERVER_CERTIFICATE')) !== 'false',
     enableArithAbort: true,
     ...(instanceName ? { instanceName } : {})
   }
 };
 
+// Cloud DB Config
+const rawCloudServer = getEnvOrConfig('CLOUD_DB_SERVER');
+let cloudServerHost = undefined;
+let cloudInstanceName = undefined;
+if (rawCloudServer) {
+  const cloudServerParts = rawCloudServer.split('\\');
+  cloudServerHost = cloudServerParts[0];
+  cloudInstanceName = cloudServerParts.length > 1 ? cloudServerParts[1] : undefined;
+}
+
+const cloudConfig = rawCloudServer ? {
+  user: getEnvOrConfig('CLOUD_DB_USER'),
+  password: getEnvOrConfig('CLOUD_DB_PASS'),
+  server: cloudServerHost,
+  database: getEnvOrConfig('CLOUD_DB_NAME'),
+  ...(cloudInstanceName ? {} : { port: parseInt(getEnvOrConfig('CLOUD_DB_PORT')) || 1433 }),
+  options: {
+    encrypt: String(getEnvOrConfig('CLOUD_DB_ENCRYPT')) === 'true',
+    trustServerCertificate: String(getEnvOrConfig('CLOUD_DB_TRUST_SERVER_CERTIFICATE')) !== 'false',
+    enableArithAbort: true,
+    ...(cloudInstanceName ? { instanceName: cloudInstanceName } : {})
+  }
+} : null;
+
 let poolPromise = null;
+let cloudPoolPromise = null;
 
 export async function getDb() {
   if (!poolPromise) {
     poolPromise = sql.connect(config)
       .then(async pool => {
-        console.log(`✅ MSSQL connected: ${config.server}/${config.database}`);
+        console.log(`✅ Local MSSQL connected: ${config.server}/${config.database}`);
         await initSchema(pool);
         return pool;
       })
       .catch(err => {
-        console.error('❌ MSSQL connection failed:', err.message);
+        console.error('❌ Local MSSQL connection failed:', err.message);
         poolPromise = null;
         throw err;
       });
   }
   return poolPromise;
+}
+
+export async function getCloudDb() {
+  if (!cloudConfig) return null;
+  if (!cloudPoolPromise) {
+    cloudPoolPromise = sql.connect(cloudConfig)
+      .then(async pool => {
+        console.log(`☁️ Cloud MSSQL connected: ${cloudConfig.server}/${cloudConfig.database}`);
+        await initSchema(pool);
+        return pool;
+      })
+      .catch(err => {
+        console.error('❌ Cloud MSSQL connection failed:', err.message);
+        cloudPoolPromise = null;
+        return null; // Don't crash local server if cloud is down
+      });
+  }
+  return cloudPoolPromise;
 }
 
 // ── Schema + Seed ────────────────────────────────────────────
@@ -417,8 +480,36 @@ async function initSchema(pool) {
     END
   `;
 
+  const tablesToSync = [
+    'Categories', 'Products', 'Accounts', 'AccountLedger', 'Couriers',
+    'Sales', 'SaleItems', 'AccountTransactions', 'Invoices', 'InvoiceItems',
+    'CashRegisters', 'CashMovements', 'PurchaseOrders', 'PurchaseOrderItems',
+    'SpecialPrices', 'Staff'
+  ];
+
+  let addSyncColumns = '';
+  for (const table of tablesToSync) {
+    addSyncColumns += `
+      IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'GlobalID' AND Object_ID = Object_ID(N'${table}'))
+      BEGIN
+          ALTER TABLE ${table} ADD GlobalID UNIQUEIDENTIFIER DEFAULT NEWID();
+      END
+
+      IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'SyncStatus' AND Object_ID = Object_ID(N'${table}'))
+      BEGIN
+          ALTER TABLE ${table} ADD SyncStatus INT NOT NULL DEFAULT 0;
+      END
+
+      IF NOT EXISTS(SELECT * FROM sys.columns WHERE Name = N'LastUpdated' AND Object_ID = Object_ID(N'${table}'))
+      BEGIN
+          ALTER TABLE ${table} ADD LastUpdated DATETIME NOT NULL DEFAULT GETDATE();
+      END
+    `;
+  }
+
   await tryExec(createTables);
   await tryExec(alterTables);
+  await tryExec(addSyncColumns);
 
   // Indexes using tryExec
   await tryExec(`CREATE UNIQUE INDEX IX_ProductBarcodes_Barcode ON ProductBarcodes(Barcode)`);

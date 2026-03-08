@@ -25,8 +25,9 @@ import printRouter from './routes/print.js';
 import printersRouter from './routes/printers.js';
 
 import { setupCourierSocket } from './sockets/courierSocket.js';
-import { getDb } from './config/db.js';
+import { getDb, getCloudDb } from './config/db.js';
 import { startTunnel, stopTunnel } from './tunnel/tunnelManager.js';
+import { startSyncManager, stopSyncManager } from './utils/syncManager.js';
 
 dotenv.config();
 
@@ -85,14 +86,20 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, async () => {
     console.log(`🚀 PosLX server running on http://localhost:${PORT}`);
-    // Initialize MSSQL DB
+    // Initialize Local and Cloud MSSQL DBs
     await getDb();
+    await getCloudDb();
+
+    // Start Data Sync Engine
+    startSyncManager();
+
     // Start Cloudflare Tunnel
     startTunnel(PORT);
 });
 
-// Graceful shutdown — stop tunnel on exit
+// Graceful shutdown — stop tunnel and sync on exit
 const gracefulShutdown = () => {
+    stopSyncManager();
     stopTunnel();
     process.exit(0);
 };
