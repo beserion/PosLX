@@ -21,37 +21,44 @@ export function useRealtimeUpdates() {
         salesSocket.connect();
         courierSocket.connect();
 
-        // Connection status
-        salesSocket.on('connect', () => setConnected(true));
-        salesSocket.on('disconnect', () => setConnected(false));
-
-        // Listen for new sales and transactions
-        salesSocket.on('sale:new', (data) => {
+        const handleConnect = () => setConnected(true);
+        const handleDisconnect = () => setConnected(false);
+        const handleNewSale = (data) => {
             addRealtimeSale(data);
             fetchSummary();
-        });
-
-        salesSocket.on('transaction:new', () => {
+        };
+        const handleNewTransaction = () => {
             fetchSummary();
-        });
-
-        courierSocket.on('status:changed', (data) => {
+        };
+        const handleStatusChanged = (data) => {
             updateStatus(data.courierID, data.status);
-        });
-
-        courierSocket.on('location:update', (data) => {
+        };
+        const handleLocationUpdate = (data) => {
             if (data.courierId && data.latitude && data.longitude) {
                 updateLocation(data.courierId, data.latitude, data.longitude);
             }
-        });
+        };
+
+        // Connection status
+        salesSocket.on('connect', handleConnect);
+        salesSocket.on('disconnect', handleDisconnect);
+
+        // Listen for new sales and transactions
+        salesSocket.on('sale:new', handleNewSale);
+        salesSocket.on('transaction:new', handleNewTransaction);
+
+        courierSocket.on('status:changed', handleStatusChanged);
+        courierSocket.on('location:update', handleLocationUpdate);
 
         return () => {
-            salesSocket.off('sale:new');
-            salesSocket.off('transaction:new');
-            salesSocket.off('connect');
-            salesSocket.off('disconnect');
-            courierSocket.off('location:changed');
-            courierSocket.off('status:changed');
+            salesSocket.off('connect', handleConnect);
+            salesSocket.off('disconnect', handleDisconnect);
+            salesSocket.off('sale:new', handleNewSale);
+            salesSocket.off('transaction:new', handleNewTransaction);
+
+            courierSocket.off('status:changed', handleStatusChanged);
+            courierSocket.off('location:update', handleLocationUpdate);
+
             salesSocket.disconnect();
             courierSocket.disconnect();
         };
