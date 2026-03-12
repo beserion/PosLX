@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useCourierStore } from '../store/courierStore';
 import api from '../lib/api';
-import { Calendar, User, DollarSign, CreditCard, Banknote, Check, Calculator, LayoutTemplate, Clock } from 'lucide-react';
+import { Calendar, User, DollarSign, CreditCard, Banknote, Check, Calculator, LayoutTemplate, Clock, ListOrdered, ChevronRight, Package, MapPin, Phone } from 'lucide-react';
 import CourierHistoryTable from '../components/courier/CourierHistoryTable';
 import { useToast } from '../hooks/useToast';
 
@@ -16,7 +16,8 @@ export default function CourierSettlementPage() {
   const { couriers, fetchCouriers } = useCourierStore();
   const toast = useToast();
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Use locale string so it accounts for local timezone (like Turkey GMT+3)
+  const today = new Date().toLocaleDateString('en-CA'); // 'en-CA' gives 'YYYY-MM-DD' natively
   const [activeTab, setActiveTab] = useState('new');
   const [selectedCourier, setSelectedCourier] = useState('');
   const [date, setDate] = useState(today);
@@ -25,12 +26,17 @@ export default function CourierSettlementPage() {
   const [settlement, setSettlement] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dailyOrders, setDailyOrders] = useState([]);
+  const [loadingDaily, setLoadingDaily] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const [cashDelivered, setCashDelivered] = useState('0');
   const [pos1, setPos1] = useState('0');
   const [pos2, setPos2] = useState('0');
   const [pos3, setPos3] = useState('0');
   const [courierPayment, setCourierPayment] = useState('0');
+  const [fuelAmount, setFuelAmount] = useState('0');
+  const [maintenanceAmount, setMaintenanceAmount] = useState('0');
 
   useEffect(() => {
     fetchCouriers();
@@ -52,12 +58,16 @@ export default function CourierSettlementPage() {
         setPos2(String(data.settlement.Pos2Amount ?? 0));
         setPos3(String(data.settlement.Pos3Amount ?? 0));
         setCourierPayment(String(data.settlement.CourierPayment ?? 0));
+        setFuelAmount(String(data.settlement.FuelAmount ?? 0));
+        setMaintenanceAmount(String(data.settlement.MaintenanceAmount ?? 0));
       } else {
         setCashDelivered('0');
         setPos1('0');
         setPos2('0');
         setPos3('0');
         setCourierPayment('0');
+        setFuelAmount('0');
+        setMaintenanceAmount('0');
       }
     } catch (err) {
       console.error('Failed to load courier settlement summary:', err.message);
@@ -67,8 +77,30 @@ export default function CourierSettlementPage() {
   };
 
   useEffect(() => {
-    if (selectedCourier) loadSummary();
+    if (selectedCourier) {
+      loadSummary();
+      loadDailyOrders();
+    } else {
+      setDailyOrders([]);
+    }
   }, [selectedCourier, date]);
+
+  const loadDailyOrders = async () => {
+    if (!selectedCourier) return;
+    setLoadingDaily(true);
+    setSelectedOrder(null);
+    try {
+      const { data } = await api.get('/courier-settlements/daily-orders', {
+        params: { courierId: selectedCourier, date },
+      });
+      setDailyOrders(data);
+    } catch (err) {
+      console.error('Failed to load daily orders:', err.message);
+      toast.error('Gün içi siparişler alınamadı.');
+    } finally {
+      setLoadingDaily(false);
+    }
+  };
 
   const posTotal =
     (Number(pos1) || 0) + (Number(pos2) || 0) + (Number(pos3) || 0);
@@ -90,6 +122,8 @@ export default function CourierSettlementPage() {
         PosTotal: posTotal,
         Difference: difference,
         CourierPayment: Number(courierPayment) || 0,
+        FuelAmount: Number(fuelAmount) || 0,
+        MaintenanceAmount: Number(maintenanceAmount) || 0,
         Turnover: summary?.Turnover || 0,
         SalesAmount: summary?.Turnover || 0,
         ServiceAmount: 0,
@@ -141,10 +175,20 @@ export default function CourierSettlementPage() {
           <Clock size={18} />
           Geçmiş Raporlar
         </button>
+        <button
+          onClick={() => setActiveTab('daily')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-300 flex items-center gap-2 ${activeTab === 'daily'
+            ? 'border-cyan-400 text-cyan-400'
+            : 'border-transparent text-text-muted hover:text-text-primary hover:border-white/10'
+            }`}
+        >
+          <ListOrdered size={18} />
+          Gün İçi Hareketleri
+        </button>
       </div>
 
-      {activeTab === 'new' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {(activeTab === 'new' || activeTab === 'daily') && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
           {/* Sol Kolon: Seçimler ve Özet */}
           <div className="col-span-1 lg:col-span-4 flex flex-col gap-6">
             {/* Seçimler */}
@@ -190,7 +234,7 @@ export default function CourierSettlementPage() {
             </div>
 
             {/* Özet kutusu */}
-            <div className="glass-card p-5 rounded-2xl flex flex-col gap-4">
+            <div className={`glass-card p-5 rounded-2xl flex flex-col gap-4 transition-all ${activeTab === 'daily' && !settlement ? 'opacity-50 pointer-events-none' : ''}`}>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <Calculator size={16} className="text-cyan-accent" />
                 Sistem Kayıtları (Beklenen)
@@ -202,15 +246,24 @@ export default function CourierSettlementPage() {
                 <Kpi
                   label="Servis Adedi"
                   value={`${summary?.ServiceCount || 0} Paket`}
-                  className="col-span-2"
+                  className={activeTab === 'daily' && settlement ? "col-span-1" : "col-span-2"}
                 />
+                {activeTab === 'daily' && settlement && (
+                  <Kpi 
+                    label="Fark" 
+                    value={fmtMoney(difference)} 
+                    className="col-span-1"
+                    valueClass={difference === 0 ? 'text-emerald-400' : (difference > 0 ? 'text-cyan-400' : 'text-red-400')}
+                  />
+                )}
               </div>
             </div>
           </div>
 
-          {/* Sağ Kolon: Kurye Teslim Formu */}
-          <div className="col-span-1 lg:col-span-8">
-            <div className="glass-card p-6 rounded-2xl flex flex-col h-full relative overflow-hidden">
+          {/* Sağ Kolon: Kurye Teslim Formu (Sadece Yeni Gün Sonu sekmesinde göster) */}
+          {activeTab === 'new' && (
+            <div className="col-span-1 lg:col-span-8 flex flex-col h-full min-h-0">
+              <div className="glass-card p-6 rounded-2xl flex flex-col h-full relative overflow-hidden">
               {/* Arka plan süsü */}
               <div className="absolute -top-24 -right-24 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -245,6 +298,18 @@ export default function CourierSettlementPage() {
                     icon={DollarSign}
                     value={courierPayment}
                     onChange={setCourierPayment}
+                  />
+                  <RowMoney
+                    label="Yakıt Ödemesi"
+                    icon={DollarSign}
+                    value={fuelAmount}
+                    onChange={setFuelAmount}
+                  />
+                  <RowMoney
+                    label="Bakım Ödemesi"
+                    icon={DollarSign}
+                    value={maintenanceAmount}
+                    onChange={setMaintenanceAmount}
                   />
                 </div>
               </div>
@@ -292,23 +357,123 @@ export default function CourierSettlementPage() {
               </button>
             </div>
           </div>
+          )}
+
+          {/* Sağ Kolon: Gün İçi Hareketleri Listesi */}
+          {activeTab === 'daily' && (
+             <div className="col-span-1 lg:col-span-8 flex gap-6 h-[calc(100vh-14rem)] bg-bg-dark rounded-2xl overflow-hidden shadow-lg border border-white/5">
+                {/* Orders List */}
+                <div className="w-1/2 flex flex-col border-r border-white/5 bg-white/[0.02]">
+                  <div className="p-4 border-b border-white/5 bg-white/[0.01]">
+                    <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                       <Package size={16} className="text-cyan-accent" />
+                       Siparişler ({dailyOrders.length})
+                    </h2>
+                  </div>
+                  <div className="flex-1 overflow-auto custom-scrollbar p-2 space-y-2">
+                     {!selectedCourier ? (
+                        <div className="text-center text-text-muted p-8 text-sm">Lütfen kurye seçin</div>
+                     ) : loadingDaily ? (
+                        <div className="text-center text-text-muted p-8 text-sm">Yükleniyor...</div>
+                     ) : dailyOrders.length === 0 ? (
+                        <div className="text-center text-text-muted p-8 text-sm">Bu tarihte kuryeye atanmış sipariş bulunamadı.</div>
+                     ) : (
+                        dailyOrders.map(order => (
+                          <div 
+                             key={order.SaleID} 
+                             onClick={() => setSelectedOrder(order)}
+                             className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.SaleID === order.SaleID ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/5 bg-white/5 hover:border-white/20'}`}
+                          >
+                             <div className="flex justify-between items-start mb-2">
+                               <span className="font-mono text-xs font-bold text-cyan-400">#{order.SaleID}</span>
+                               <span className="text-xs text-text-muted">
+                                  {new Date(order.CreatedAt.replace(' ', 'T')).toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'})}
+                               </span>
+                             </div>
+                             <div className="font-semibold text-sm text-text-primary mb-1 truncate">{order.CustomerName || 'Müşteri'}</div>
+                             <div className="flex justify-between items-end mt-3">
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase tracking-wider ${order.PaymentMethod === 'Cash' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                  {order.PaymentMethod === 'Cash' ? 'Nakit' : 'K. Kartı'}
+                                </span>
+                                <span className="font-bold text-emerald-400">{fmtMoney(order.TotalAmount)}</span>
+                             </div>
+                          </div>
+                        ))
+                     )}
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="w-1/2 flex flex-col bg-[#111827]/50 relative">
+                   {selectedOrder ? (
+                      <div className="p-6 flex flex-col h-full overflow-hidden">
+                         <h2 className="text-lg font-bold text-text-primary mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                           <LayoutTemplate size={20} className="text-cyan-400" />
+                           Sipariş #{selectedOrder.SaleID} Detayı
+                         </h2>
+                         
+                         <div className="flex-1 overflow-auto custom-scrollbar custom-scrollbar-hide pr-2">
+                            {/* Order Items */}
+                            <div className="glass-card-static rounded-xl overflow-hidden flex flex-col">
+                               <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider p-4 border-b border-white/5 bg-white/[0.02]">Sipariş İçeriği</h3>
+                               <div className="p-2 space-y-1 bg-white/[0.01]">
+                                  {selectedOrder.items?.map((item, idx) => (
+                                      <div key={idx} className="flex justify-between items-center p-2 hover:bg-white/[0.04] rounded-lg transition-colors group">
+                                         <div className="flex flex-col gap-0.5">
+                                            <span className="text-sm font-medium text-text-primary group-hover:text-cyan-100 transition-colors">{item.Name}</span>
+                                            <span className="text-xs text-text-muted">{fmtMoney(item.UnitPrice)} x {item.Qty}</span>
+                                         </div>
+                                         <span className="font-bold text-sm text-text-primary">{fmtMoney(item.UnitPrice * item.Qty)}</span>
+                                      </div>
+                                  ))}
+                               </div>
+                               <div className="mt-auto p-4 border-t border-white/10 bg-cyan-950/20 flex justify-between items-center">
+                                  <span className="text-sm font-bold text-text-muted">Toplam Tutar:</span>
+                                  <span className="text-xl font-bold text-emerald-400">{fmtMoney(selectedOrder.TotalAmount)}</span>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                   ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-text-muted opacity-50 space-y-4">
+                         <div className="w-20 h-20 rounded-full border-2 border-dashed border-text-muted flex items-center justify-center">
+                           <LayoutTemplate size={32} />
+                         </div>
+                         <p className="font-medium">Detayları görmek için bir sipariş seçin</p>
+                      </div>
+                   )}
+                </div>
+             </div>
+          )}
+
         </div>
       )}
 
       {activeTab === 'history' && (
         <div className="flex-1 min-h-0">
-          <CourierHistoryTable />
+          <CourierHistoryTable 
+            onRowClick={(row) => {
+              setSelectedCourier(row.CourierID.toString());
+              // Fix UTC offset problem by splitting the Date string and using the YYYY-MM-DD format directly format if it looks like an ISO string
+              let dateStr = row.Date;
+              if (dateStr.includes('T')) {
+                 dateStr = dateStr.split('T')[0];
+              }
+              setDate(dateStr);
+              setActiveTab('daily');
+            }} 
+          />
         </div>
       )}
     </div>
   );
 }
 
-function Kpi({ label, value, highlight, className = '' }) {
+function Kpi({ label, value, highlight, className = '', valueClass = '' }) {
   return (
     <div className={`glass-card-static rounded-xl p-4 flex flex-col gap-1.5 ${highlight ? 'border border-cyan-500/30 bg-cyan-500/5' : ''} ${className}`}>
       <span className={`text-xs font-medium ${highlight ? 'text-cyan-400/80' : 'text-text-muted'}`}>{label}</span>
-      <span className={`text-xl font-bold ${highlight ? 'text-cyan-400' : 'text-emerald-400'}`}>{value}</span>
+      <span className={`text-xl font-bold ${valueClass ? valueClass : (highlight ? 'text-cyan-400' : 'text-emerald-400')}`}>{value}</span>
     </div>
   );
 }

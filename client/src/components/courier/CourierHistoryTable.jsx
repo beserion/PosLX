@@ -14,7 +14,7 @@ function fmtMoney(v) {
     })}`;
 }
 
-export default function CourierHistoryTable() {
+export default function CourierHistoryTable({ onRowClick }) {
     const { couriers, fetchCouriers } = useCourierStore();
 
     const [history, setHistory] = useState([]);
@@ -55,6 +55,8 @@ export default function CourierHistoryTable() {
         { header: 'Nakit Teslim', key: 'CashDelivered', formatter: (v) => Number(v || 0) },
         { header: 'POS Toplamı', key: 'PosTotal', formatter: (v) => Number(v || 0) },
         { header: 'Teslim Edilen', key: 'Delivered', formatter: (v, row) => (Number(row.CashDelivered) || 0) + (Number(row.PosTotal) || 0) },
+        { header: 'Yakıt', key: 'FuelAmount', formatter: (v) => Number(v || 0) },
+        { header: 'Bakım', key: 'MaintenanceAmount', formatter: (v) => Number(v || 0) },
         { header: 'Ciro (Beklenen)', key: 'Turnover', formatter: (v) => Number(v || 0) },
         {
             header: 'Fark', key: 'Difference', formatter: (v, row) => {
@@ -197,7 +199,9 @@ export default function CourierHistoryTable() {
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5">Kurye</th>
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right bg-white/5">Nakit Teslim</th>
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right bg-white/5">POS Toplamı</th>
-                                <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right text-emerald-400/80 bg-white/5">Teslim Edilen</th>
+                                <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right bg-white/5">Teslim Edilen</th>
+                                <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right text-rose-400/80">Yakıt</th>
+                                <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right text-rose-400/80">Bakım</th>
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right">Ciro (Beklenen)</th>
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right">Fark</th>
                                 <th className="py-4 px-4 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-white/5 text-right">Durum</th>
@@ -206,13 +210,13 @@ export default function CourierHistoryTable() {
                         <tbody className="divide-y divide-white/5">
                             {loading && history.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="py-12 text-center text-text-muted text-sm">
+                                    <td colSpan="10" className="py-12 text-center text-text-muted text-sm">
                                         Yükleniyor...
                                     </td>
                                 </tr>
                             ) : history.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="py-12 text-center text-text-muted text-sm">
+                                    <td colSpan="10" className="py-12 text-center text-text-muted text-sm">
                                         Kayıt bulunamadı.
                                     </td>
                                 </tr>
@@ -226,7 +230,11 @@ export default function CourierHistoryTable() {
                                     const isShort = difference < 0;
 
                                     return (
-                                        <tr key={row.ID} className="hover:bg-white/[0.02] transition-colors group">
+                                        <tr 
+                                            key={row.ID} 
+                                            className="hover:bg-white/[0.02] transition-colors group cursor-pointer"
+                                            onClick={() => onRowClick && onRowClick(row)}
+                                        >
                                             <td className="py-3 px-4">
                                                 <div className="flex items-center gap-2">
                                                     <Calendar size={14} className="text-cyan-500/70" />
@@ -251,6 +259,12 @@ export default function CourierHistoryTable() {
                                             </td>
                                             <td className="py-3 px-4 text-right text-sm font-bold text-emerald-400 font-mono bg-white/[0.02]">
                                                 {fmtMoney(delivered)}
+                                            </td>
+                                            <td className="py-3 px-4 text-right text-sm text-rose-400/80 font-mono">
+                                                {fmtMoney(row.FuelAmount)}
+                                            </td>
+                                            <td className="py-3 px-4 text-right text-sm text-rose-400/80 font-mono">
+                                                {fmtMoney(row.MaintenanceAmount)}
                                             </td>
                                             <td className="py-3 px-4 text-right text-sm font-semibold text-text-primary font-mono">
                                                 {fmtMoney(row.Turnover)}

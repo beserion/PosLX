@@ -15,6 +15,73 @@ export const usePosStore = create((set, get) => ({
     serviceFeeSetting: 0,
     taxRateSetting: 8,
 
+    suspendedCarts: [],
+    nextCartId: 1,
+
+    suspendCurrentCart: () => set((state) => {
+        if (state.cart.length === 0) return state; // nothing to suspend
+
+        const newSuspended = {
+            id: state.nextCartId,
+            name: `Sepet ${state.nextCartId}`,
+            cart: [...state.cart],
+            paymentMethod: state.paymentMethod,
+            discountAmount: state.discountAmount,
+            serviceFeeCount: state.serviceFeeCount,
+            checkoutCourierID: state.checkoutCourierID,
+        };
+
+        return {
+            suspendedCarts: [...state.suspendedCarts, newSuspended],
+            nextCartId: state.nextCartId + 1,
+            // reset active cart
+            cart: [],
+            paymentMethod: 'Cash',
+            discountAmount: 0,
+            serviceFeeCount: 0,
+            checkoutCourierID: null,
+        };
+    }),
+
+    resumeCart: (id) => set((state) => {
+        const targetCartIndex = state.suspendedCarts.findIndex(c => c.id === id);
+        if (targetCartIndex === -1) return state;
+
+        const targetCart = state.suspendedCarts[targetCartIndex];
+        const newSuspendedList = [...state.suspendedCarts];
+        newSuspendedList.splice(targetCartIndex, 1);
+
+        // If the current active cart has items, we suspend it first
+        let nextId = state.nextCartId;
+        if (state.cart.length > 0) {
+            newSuspendedList.push({
+                id: nextId,
+                name: `Sepet ${nextId}`,
+                cart: [...state.cart],
+                paymentMethod: state.paymentMethod,
+                discountAmount: state.discountAmount,
+                serviceFeeCount: state.serviceFeeCount,
+                checkoutCourierID: state.checkoutCourierID,
+            });
+            nextId++;
+        }
+
+        return {
+            suspendedCarts: newSuspendedList,
+            nextCartId: nextId,
+            // load target cart into active
+            cart: targetCart.cart,
+            paymentMethod: targetCart.paymentMethod,
+            discountAmount: targetCart.discountAmount,
+            serviceFeeCount: targetCart.serviceFeeCount,
+            checkoutCourierID: targetCart.checkoutCourierID,
+        };
+    }),
+
+    removeSuspendedCart: (id) => set((state) => ({
+        suspendedCarts: state.suspendedCarts.filter(c => c.id !== id)
+    })),
+
     setDiscountAmount: (amount) => set({ discountAmount: amount }),
     addServiceFee: () => set((state) => ({ serviceFeeCount: state.serviceFeeCount + 1 })),
     removeServiceFee: () => set((state) => ({ serviceFeeCount: Math.max(0, state.serviceFeeCount - 1) })),

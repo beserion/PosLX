@@ -10,13 +10,16 @@ import { useCourierStore } from '../../store/courierStore';
 
 export default function CheckoutList({ onClose }) {
     const cart = usePosStore((s) => s.cart);
+    const suspendedCarts = usePosStore((s) => s.suspendedCarts);
+    const suspendCurrentCart = usePosStore((s) => s.suspendCurrentCart);
+    const resumeCart = usePosStore((s) => s.resumeCart);
+    const removeSuspendedCart = usePosStore((s) => s.removeSuspendedCart);
     const updateQty = usePosStore((s) => s.updateQty);
     const removeFromCart = usePosStore((s) => s.removeFromCart);
     const paymentMethod = usePosStore((s) => s.paymentMethod);
     const setPaymentMethod = usePosStore((s) => s.setPaymentMethod);
     const getItemPrice = usePosStore((s) => s.getItemPrice);
     const getSubtotal = usePosStore((s) => s.getSubtotal);
-    const getTax = usePosStore((s) => s.getTax);
     const getTotal = usePosStore((s) => s.getTotal);
     const completeSale = usePosStore((s) => s.completeSale);
     const checkoutCourierID = usePosStore((s) => s.checkoutCourierID);
@@ -28,7 +31,6 @@ export default function CheckoutList({ onClose }) {
     const removeServiceFee = usePosStore((s) => s.removeServiceFee);
     const serviceFeeSetting = usePosStore((s) => s.serviceFeeSetting);
     const fetchSettings = usePosStore((s) => s.fetchSettings);
-    const taxRateSetting = usePosStore((s) => s.taxRateSetting);
 
     const couriers = useCourierStore((s) => s.couriers);
     const fetchCouriers = useCourierStore((s) => s.fetchCouriers);
@@ -69,15 +71,50 @@ export default function CheckoutList({ onClose }) {
     return (
         <>
             <div className="glass-card-static flex flex-col h-full">
-                {/* Header */}
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-glass-border">
-                    <ShoppingBag size={22} className="text-cyan-accent" />
-                    <h2 className="text-lg font-bold text-text-primary">Checkout</h2>
-                    <span className="badge badge-cyan ml-auto text-sm">{cart.length} items</span>
+                {/* Header & Cart Tabs */}
+                <div className="flex flex-col border-b border-glass-border">
+                    <div className="flex items-center gap-2 px-5 py-3">
+                        <ShoppingBag size={20} className="text-cyan-accent" />
+                        <h2 className="text-base font-bold text-text-primary">Siparişler</h2>
+                    </div>
+                    
+                    {/* Cart Tabs Ribbon */}
+                    <div className="flex gap-2 overflow-x-auto px-5 pb-3 scrollbar-none items-center">
+                        <button 
+                            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-bold bg-cyan-accent/20 text-cyan-accent border border-cyan-accent/50 shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all"
+                        >
+                            Aktif Sepet ({cart.length})
+                        </button>
+                        {suspendedCarts.map(sc => (
+                            <div key={sc.id} className="flex-shrink-0 flex items-center bg-surface-dark border border-glass-border rounded-lg overflow-hidden group">
+                                <button 
+                                    onClick={() => resumeCart(sc.id)}
+                                    className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors hover:bg-white/5 whitespace-nowrap"
+                                >
+                                    {sc.name} <span className="text-xs opacity-70 ml-1">({sc.cart.length})</span>
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); removeSuspendedCart(sc.id); }}
+                                    className="px-2 py-2 text-text-muted hover:text-danger hover:bg-white/10 transition-colors"
+                                    title="Sepeti İptal Et"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        ))}
+                        <button 
+                            onClick={() => suspendCurrentCart()}
+                            disabled={cart.length === 0}
+                            className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${cart.length === 0 ? 'border-glass-border/30 text-text-muted cursor-not-allowed bg-surface-dark' : 'border-emerald-accent/50 text-emerald-accent hover:bg-emerald-accent/10'}`}
+                            title="Mevcut sepeti beklemeye al (Yeni sipariş aç)"
+                        >
+                            <Plus size={14} /> Beklet
+                        </button>
+                    </div>
                 </div>
 
                 {/* Barcode */}
-                <div className="px-5 py-3 border-b border-glass-border">
+                <div className="px-5 py-3 border-b border-glass-border bg-surface-dark/30">
                     <BarcodeInput />
                 </div>
 
@@ -206,9 +243,7 @@ export default function CheckoutList({ onClose }) {
                     <div className="flex justify-between text-sm text-text-secondary pt-1">
                         <span>Subtotal</span><span>₺{getSubtotal().toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-text-secondary">
-                        <span>Tax (%{taxRateSetting})</span><span>₺{getTax().toFixed(2)}</span>
-                    </div>
+
                     {serviceFeeCount > 0 && (
                         <div className="flex justify-between text-sm text-emerald-accent">
                             <span>Service Fee (x{serviceFeeCount})</span><span>+ ₺{(serviceFeeCount * serviceFeeSetting).toFixed(2)}</span>

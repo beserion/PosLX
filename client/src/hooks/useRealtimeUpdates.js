@@ -34,6 +34,7 @@ export function useRealtimeUpdates() {
             updateStatus(data.courierID, data.status);
         };
         const handleLocationUpdate = (data) => {
+            console.log('📌 Socket Location Update Received:', data);
             if (data.courierId && data.latitude && data.longitude) {
                 updateLocation(data.courierId, data.latitude, data.longitude);
             }

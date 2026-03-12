@@ -1,0 +1,2152 @@
+USE [master]
+GO
+/****** Object:  Database [MarcaPOS]    Script Date: 11.03.2026 21:50:47 ******/
+CREATE DATABASE [MarcaPOS]
+ CONTAINMENT = NONE
+ ON  PRIMARY 
+( NAME = N'MarcaPOS', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER01\MSSQL\DATA\MarcaPOS.mdf' , SIZE = 427072KB , MAXSIZE = UNLIMITED, FILEGROWTH = 1024KB )
+ LOG ON 
+( NAME = N'MarcaPOS_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER01\MSSQL\DATA\MarcaPOS_log.ldf' , SIZE = 202816KB , MAXSIZE = 2048GB , FILEGROWTH = 10%)
+ WITH CATALOG_COLLATION = DATABASE_DEFAULT, LEDGER = OFF
+GO
+ALTER DATABASE [MarcaPOS] SET COMPATIBILITY_LEVEL = 110
+GO
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [MarcaPOS].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+ALTER DATABASE [MarcaPOS] SET ANSI_NULL_DEFAULT OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ANSI_NULLS OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ANSI_PADDING OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ANSI_WARNINGS OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ARITHABORT OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET AUTO_CLOSE ON 
+GO
+ALTER DATABASE [MarcaPOS] SET AUTO_SHRINK OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET AUTO_UPDATE_STATISTICS ON 
+GO
+ALTER DATABASE [MarcaPOS] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET CURSOR_DEFAULT  GLOBAL 
+GO
+ALTER DATABASE [MarcaPOS] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET NUMERIC_ROUNDABORT OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET QUOTED_IDENTIFIER OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET RECURSIVE_TRIGGERS OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET  DISABLE_BROKER 
+GO
+ALTER DATABASE [MarcaPOS] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET TRUSTWORTHY OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET PARAMETERIZATION SIMPLE 
+GO
+ALTER DATABASE [MarcaPOS] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET HONOR_BROKER_PRIORITY OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET RECOVERY SIMPLE 
+GO
+ALTER DATABASE [MarcaPOS] SET  MULTI_USER 
+GO
+ALTER DATABASE [MarcaPOS] SET PAGE_VERIFY CHECKSUM  
+GO
+ALTER DATABASE [MarcaPOS] SET DB_CHAINING OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+ALTER DATABASE [MarcaPOS] SET TARGET_RECOVERY_TIME = 0 SECONDS 
+GO
+ALTER DATABASE [MarcaPOS] SET DELAYED_DURABILITY = DISABLED 
+GO
+ALTER DATABASE [MarcaPOS] SET OPTIMIZED_LOCKING = OFF 
+GO
+ALTER DATABASE [MarcaPOS] SET ACCELERATED_DATABASE_RECOVERY = OFF  
+GO
+ALTER DATABASE [MarcaPOS] SET QUERY_STORE = OFF
+GO
+USE [MarcaPOS]
+GO
+/****** Object:  Table [dbo].[HareketBaslik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[HareketBaslik](
+	[HareketNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[Tarih] [datetime] NOT NULL,
+	[VadeTarih] [datetime] NOT NULL,
+	[FaturaNo] [nvarchar](100) NOT NULL,
+	[HareketTuru] [char](2) NOT NULL,
+	[Toplam] [decimal](10, 2) NOT NULL,
+	[KDV] [decimal](10, 2) NOT NULL,
+	[Iskonto] [decimal](10, 2) NOT NULL,
+	[Yazdir] [bit] NOT NULL,
+	[Fatura] [bit] NOT NULL,
+	[FatNo] [nvarchar](100) NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[Barkod] [varchar](32) NOT NULL,
+	[Guncelleyen] [bigint] NOT NULL,
+	[BelgeKodu] [nvarchar](50) NULL,
+	[BelgeAdi] [nvarchar](250) NULL,
+	[Aciklama] [text] NULL,
+ CONSTRAINT [PK_HareketBaslik] PRIMARY KEY CLUSTERED 
+(
+	[HareketNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Musteri]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Musteri](
+	[MusteriNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[Isim] [nvarchar](255) NOT NULL,
+	[Telefon] [varchar](50) NOT NULL,
+	[Borc] [decimal](10, 4) NOT NULL,
+	[Alacak] [decimal](10, 4) NOT NULL,
+	[Limit] [decimal](10, 2) NOT NULL,
+	[HesapKesimTarihi] [int] NOT NULL,
+	[VergiNo] [varchar](16) NOT NULL,
+	[VergiDaire] [nvarchar](100) NULL,
+	[Toptanci] [bit] NOT NULL,
+	[Adres] [text] NOT NULL,
+	[AnlikLimit] [bit] NOT NULL,
+	[VadeGunu] [tinyint] NOT NULL,
+	[Tipi] [char](2) NOT NULL,
+	[Puan] [decimal](10, 2) NOT NULL,
+	[Aktif] [bit] NOT NULL,
+	[EPosta] [nvarchar](50) NULL,
+	[FirmaAdi] [nvarchar](50) NULL,
+	[CepTelefonu] [nvarchar](50) NULL,
+	[il] [nvarchar](50) NULL,
+	[ilce] [nvarchar](50) NULL,
+	[AdresTanim] [text] NULL,
+ CONSTRAINT [PK_Musteri] PRIMARY KEY CLUSTERED 
+(
+	[MusteriNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[MusteriZiyaretView]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[MusteriZiyaretView] AS SELECT        dbo.HareketBaslik.Tarih,  			  dbo.Musteri.Barkot,  			  dbo.Musteri.Isim,  			  dbo.HareketBaslik.HareketTuru,  			  dbo.HareketBaslik.Toplam FROM		  dbo.Musteri INNER JOIN               dbo.HareketBaslik ON dbo.Musteri.Barkot = dbo.HareketBaslik.Barkod
+GO
+/****** Object:  View [dbo].[MusteriIslemView]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[MusteriIslemView] AS SELECT        dbo.HareketBaslik.Tarih,  			  dbo.Musteri.Barkot,  			  dbo.Musteri.Isim,  			  dbo.HareketBaslik.HareketTuru,  			  dbo.HareketBaslik.Toplam, 			  dbo.HareketBaslik.Yazdir, 			  dbo.HareketBaslik.Fatura, 			  dbo.HareketBaslik.HareketNo, 			  dbo.HareketBaslik.FatNo, 			  dbo.HareketBaslik.OdemeTuru FROM		  dbo.Musteri INNER JOIN               dbo.HareketBaslik ON dbo.Musteri.Barkot = dbo.HareketBaslik.Barkod
+GO
+/****** Object:  Table [dbo].[Toptanci]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Toptanci](
+	[ToptanciNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[Isim] [nvarchar](255) NOT NULL,
+	[Telefon] [nvarchar](50) NOT NULL,
+	[Borc] [decimal](10, 4) NOT NULL,
+	[Alacak] [decimal](10, 4) NOT NULL,
+	[Adres] [text] NOT NULL,
+	[VergiDaire] [nvarchar](100) NOT NULL,
+	[VergiNo] [varchar](16) NOT NULL,
+	[Il] [nvarchar](100) NULL,
+	[Ilce] [nvarchar](100) NULL,
+	[Turu] [tinyint] NOT NULL,
+	[Telefon2] [nvarchar](50) NULL,
+	[Fax] [nvarchar](50) NULL,
+	[Email] [nvarchar](100) NULL,
+	[WebSite] [nvarchar](100) NULL,
+	[Iskonto] [decimal](5, 2) NULL,
+	[Plasiyer] [nvarchar](100) NULL,
+	[PlasiyerTelefon] [nvarchar](100) NULL,
+	[PlasiyerZiyaretGunleri] [nvarchar](100) NULL,
+	[Aktif] [bit] NOT NULL,
+ CONSTRAINT [PK_Toptanci] PRIMARY KEY CLUSTERED 
+(
+	[ToptanciNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[AlisFaturasi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[AlisFaturasi](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[Iade] [bit] NOT NULL,
+	[ToptanciBarkot] [varchar](32) NOT NULL,
+	[Tarih] [datetime] NOT NULL,
+	[FaturaNo] [varchar](32) NOT NULL,
+	[IrsaliyeNo] [varchar](32) NOT NULL,
+	[KDV] [decimal](10, 4) NOT NULL,
+	[KDVDahil] [bit] NOT NULL,
+	[EkBilgi1] [nvarchar](255) NOT NULL,
+	[EkBilgi2] [nvarchar](255) NOT NULL,
+	[Aciklama] [nvarchar](255) NOT NULL,
+	[VadeTarih] [datetime] NOT NULL,
+	[Iskonto1] [tinyint] NOT NULL,
+	[Iskonto2] [tinyint] NOT NULL,
+	[Iskonto3] [tinyint] NOT NULL,
+	[FatAltiIskontoOran] [tinyint] NOT NULL,
+	[FatAltiIskontoTutar] [decimal](10, 4) NOT NULL,
+	[ProcessCari] [bit] NOT NULL,
+	[ProcessStock] [bit] NOT NULL,
+	[ClosedInvoice] [bit] NOT NULL,
+	[OdemeTuru] [tinyint] NOT NULL,
+	[KasaNo] [bigint] NOT NULL,
+	[OdemeTutar] [decimal](10, 4) NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[Guncelleyen] [bigint] NOT NULL,
+ CONSTRAINT [PK_AlisFaturasi] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[AlisFaturasiUrun]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[AlisFaturasiUrun](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[FaturaID] [bigint] NOT NULL,
+	[FaturaOrder] [int] NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[UrunAdi] [nvarchar](255) NOT NULL,
+	[Birim] [tinyint] NOT NULL,
+	[Adet] [int] NOT NULL,
+	[BirimFiyat] [decimal](10, 4) NOT NULL,
+	[BirimFiyatKDVli] [decimal](10, 4) NOT NULL,
+	[Fiyat] [decimal](10, 4) NOT NULL,
+	[FiyatKDVDahil] [decimal](10, 4) NOT NULL,
+	[KDV] [tinyint] NOT NULL,
+	[IndirimOrani] [tinyint] NOT NULL,
+	[Indirim] [decimal](10, 4) NOT NULL,
+	[Aciklama] [varchar](255) NOT NULL,
+	[Iskonto1Oran] [decimal](10, 4) NULL,
+	[Iskonto1Tutar] [decimal](10, 4) NULL,
+	[Iskonto2Oran] [decimal](10, 4) NULL,
+	[Iskonto2Tutar] [decimal](10, 4) NULL,
+	[Iskonto3Oran] [decimal](10, 4) NULL,
+	[Iskonto3Tutar] [decimal](10, 4) NULL,
+ CONSTRAINT [PK_AlisFaturasiUrun] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[ToptanciIslemView]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[ToptanciIslemView] AS  	SELECT         		dbo.HareketBaslik.Tarih,  			   		dbo.Toptanci.Barkot,  			   		dbo.Toptanci.Isim,  			   		dbo.HareketBaslik.HareketTuru,  			   		dbo.HareketBaslik.Toplam,  			   		dbo.HareketBaslik.Yazdir,                 		dbo.HareketBaslik.Fatura,  			   		dbo.HareketBaslik.HareketNo,  			   		dbo.HareketBaslik.FatNo,  			   		dbo.HareketBaslik.OdemeTuru  	FROM           		dbo.Toptanci INNER JOIN                		dbo.HareketBaslik ON dbo.Toptanci.Barkot = dbo.HareketBaslik.Barkod 	union 	SELECT 		dbo.AlisFaturasi.Tarih, 		dbo.Toptanci.Barkot, 		dbo.Toptanci.Isim, 		case when dbo.AlisFaturasi.Iade = 0 then 'TA' 		     else 'TI' end, 		ISNULL((select sum(FiyatKDVDahil - Indirim) from dbo.AlisFaturasiUrun where dbo.AlisFaturasiUrun.FaturaID = dbo.AlisFaturasi.id),0) -  		dbo.AlisFaturasi.FatAltiIskontoTutar, 		0, 		0, 		dbo.AlisFaturasi.ID, 		dbo.AlisFaturasi.FaturaNo, 		dbo.AlisFaturasi.OdemeTuru 	FROM 		dbo.Toptanci INNER JOIN 		dbo.AlisFaturasi ON dbo.Toptanci.Barkot = dbo.AlisFaturasi.ToptanciBarkot
+GO
+/****** Object:  View [dbo].[IslemView]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[IslemView] AS  		SELECT         		 	 			dbo.HareketBaslik.Tarih,  		 	 			dbo.HareketBaslik.Barkod,  		 	 			dbo.HareketBaslik.HareketTuru,  		 	 			dbo.HareketBaslik.Toplam,  		 	 			dbo.HareketBaslik.Yazdir,           	 			dbo.HareketBaslik.Fatura,  		 	 			dbo.HareketBaslik.HareketNo,  		 	 			dbo.HareketBaslik.FatNo,  		 	 			dbo.HareketBaslik.OdemeTuru, 		 		 			case dbo.HareketBaslik.HareketTuru 		 			 			when 'GI' then dbo.HareketBaslik.FaturaNo 		else 		ISNULL(dbo.musteri.isim,isnull(dbo.toptanci.isim,'')) end as Isim, 		 			 			dbo.Musteri.MusteriNo, 		 			 			dbo.Toptanci.ToptanciNo  	 		  FROM     			dbo.HareketBaslik           		LEFT JOIN 			 			dbo.Musteri ON dbo.Musteri.Barkot = dbo.HareketBaslik.Barkod left join 			 			dbo.Toptanci on dbo.Toptanci.Barkot = dbo.HareketBaslik.Barkod  		 		  WHERE 		 			DBO.HareketBaslik.Toplam != 0 and dbo.HareketBaslik.HareketTuru not in ('KG','KC') 	union 	 		  SELECT 		 				dbo.AlisFaturasi.Tarih, 		 				dbo.Toptanci.Barkot, 		 				case when dbo.AlisFaturasi.Iade = 0 then 'TA' 		     else 'TI' end, 				ISNULL((select sum(FiyatKDVDahil - Indirim) from dbo.AlisFaturasiUrun where dbo.AlisFaturasiUrun.FaturaID = dbo.AlisFaturasi.id),0) -  		dbo.AlisFaturasi.FatAltiIskontoTutar, 				cast (0 as bit), 				cast (0 as bit), 				dbo.AlisFaturasi.ID, 				dbo.AlisFaturasi.FaturaNo, 		 				dbo.AlisFaturasi.OdemeTuru 	, 				dbo.Toptanci.Isim, 				'', 				dbo.Toptanci.ToptanciNo  		FROM 		 			dbo.Toptanci INNER JOIN 		 			dbo.AlisFaturasi ON dbo.Toptanci.Barkot = dbo.AlisFaturasi.ToptanciBarkot
+GO
+/****** Object:  Table [dbo].[Urun]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Urun](
+	[UrunId] [bigint] IDENTITY(1,1) NOT NULL,
+	[GrupId] [bigint] NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[Adi] [nvarchar](255) NOT NULL,
+	[AlisFiyati] [decimal](10, 4) NOT NULL,
+	[SatisFiyati] [decimal](10, 2) NOT NULL,
+	[Birim] [tinyint] NOT NULL,
+	[KDV] [tinyint] NOT NULL,
+	[StokAdedi] [int] NOT NULL,
+	[Aktif] [bit] NOT NULL,
+	[Aciklama] [text] NULL,
+	[Alan1] [varchar](255) NOT NULL,
+	[Alan2] [varchar](255) NOT NULL,
+	[YazarKasa] [bit] NOT NULL,
+	[Yeni] [bit] NOT NULL,
+	[FiyatDegisti] [bit] NOT NULL,
+	[FiyatDegismeTarihi] [datetime] NOT NULL,
+	[SatisFiyatiKrediKarti] [decimal](10, 2) NOT NULL,
+	[SatisFiyatiMusteri] [decimal](10, 2) NOT NULL,
+	[AltGrupId] [int] NULL,
+	[RenkId] [int] NULL,
+	[ReyonId] [int] NULL,
+	[YazarKasaGrupId] [int] NULL,
+	[MinStok] [int] NULL,
+	[MaxStok] [int] NULL,
+	[NumaraId] [int] NULL,
+	[BedenId] [int] NULL,
+	[KoliBarkodu] [nvarchar](50) NULL,
+	[SeriNo] [nvarchar](100) NULL,
+	[RafOmru] [nvarchar](50) NULL,
+	[SatisFiyati2] [decimal](10, 2) NULL,
+	[SatisFiyati3] [decimal](10, 2) NULL,
+	[SatisFiyati4] [decimal](10, 2) NULL,
+	[SatisFiyati5] [decimal](10, 2) NULL,
+	[UrunAdi2] [nvarchar](255) NULL,
+	[UrunAdi3] [nvarchar](255) NULL,
+	[UrunAdi4] [nvarchar](255) NULL,
+	[UrunAdi5] [nvarchar](255) NULL,
+	[StokKodu] [nvarchar](255) NULL,
+	[HizliUrun] [bit] NULL,
+	[YerliUretim] [bit] NULL,
+	[UretimYeri] [nvarchar](20) NULL,
+	[KoliAdedi] [int] NULL,
+	[YeriUretim] [bit] NULL,
+	[SonAlisFiyati] [decimal](10, 2) NULL,
+	[SonSatisFiyati] [decimal](10, 2) NULL,
+	[SonHareketTarihi] [datetime] NULL,
+	[TedarikciFirma] [nvarchar](50) NULL,
+	[BarkotTipi] [nvarchar](50) NULL,
+	[SokTipi] [nvarchar](50) NULL,
+	[StokAdi2] [nvarchar](250) NULL,
+	[Marka] [nvarchar](50) NULL,
+	[Tedarikci] [nvarchar](50) NULL,
+	[MarkaID] [bigint] NULL,
+	[TedarikciID] [bigint] NULL,
+	[indirimliFiyat] [decimal](18, 2) NULL,
+	[GirisKDV] [int] NULL,
+	[BirimFiyat] [decimal](18, 2) NULL,
+	[indirimDurumu] [nvarchar](50) NULL,
+	[ParaBirimi] [nvarchar](50) NULL,
+	[OzelKod1] [nvarchar](150) NULL,
+	[OzelKod2] [nvarchar](150) NULL,
+	[OzelKod3] [nvarchar](150) NULL,
+	[OzelKod4] [nvarchar](150) NULL,
+	[OzelKod5] [nvarchar](150) NULL,
+ CONSTRAINT [PK_Urun] PRIMARY KEY CLUSTERED 
+(
+	[UrunId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[IsletmeDurum]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[IsletmeDurum] AS select 'Ürün' as tip, 	   count(UrunId) as adet, 	   sum((case Birim when 1 then StokAdedi * 1.0 else StokAdedi / 1000.0 end) 	   *(satisfiyati - (alisfiyati * (1+ KDV/100.0)))) as kar from urun  	where aktif = 1 union select 'Müşteri', 	   count(MusteriNo), 	   sum(Borc-Alacak) from Musteri union select 'Toptancı', 	  count(ToptanciNo), 	  sum(Borc-Alacak) from Toptanci
+GO
+/****** Object:  Table [dbo].[Personel]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Personel](
+	[PersonelNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[Isim] [varchar](100) NOT NULL,
+	[Telefon] [varchar](16) NULL,
+	[Adres] [nvarchar](255) NULL,
+	[TcKimlikNo] [varchar](16) NULL,
+	[KullaniciAdi] [varchar](50) NOT NULL,
+	[Sifre] [varchar](32) NOT NULL,
+	[Ucret] [decimal](10, 2) NULL,
+	[AlacakToplam] [decimal](10, 2) NOT NULL,
+	[BorcToplam] [decimal](10, 2) NOT NULL,
+	[KasaNo] [bigint] NOT NULL,
+	[Aktif] [bit] NOT NULL,
+ CONSTRAINT [PK_Personel] PRIMARY KEY CLUSTERED 
+(
+	[PersonelNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Hareket]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Hareket](
+	[HareketDetayNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[HareketNo] [bigint] NOT NULL,
+	[HareketOrder] [int] NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[UrunTuru] [char](2) NOT NULL,
+	[HareketTuru] [char](2) NOT NULL,
+	[Birim] [tinyint] NOT NULL,
+	[Adet] [int] NOT NULL,
+	[AlisFiyati] [decimal](10, 4) NOT NULL,
+	[SatisFiyati] [decimal](10, 4) NOT NULL,
+	[KDV] [tinyint] NOT NULL,
+	[IndirimOrani] [decimal](5, 2) NOT NULL,
+	[Indirim] [decimal](10, 4) NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[Aciklama] [varchar](255) NOT NULL,
+	[GrupID] [bigint] NULL,
+	[Tarih] [datetime] NULL,
+	[Sigara] [decimal](18, 2) NULL,
+	[SigaraYuzde] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_Hareket] PRIMARY KEY CLUSTERED 
+(
+	[HareketDetayNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[HareketOdeme]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[HareketOdeme](
+	[OdemeNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[HareketNo] [bigint] NOT NULL,
+	[OdemeTuru] [tinyint] NOT NULL,
+	[Tutar] [decimal](10, 2) NOT NULL,
+	[KasaNo] [bigint] NOT NULL,
+	[Kuponid] [bigint] NULL,
+ CONSTRAINT [PK_HareketOdeme] PRIMARY KEY CLUSTERED 
+(
+	[OdemeNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[IslemViewExtended]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[IslemViewExtended] AS SELECT        dbo.HareketBaslik.Tarih, dbo.HareketBaslik.Barkod, dbo.HareketBaslik.HareketTuru, dbo.HareketOdeme.Tutar AS Toplam, dbo.HareketBaslik.Yazdir,                           dbo.HareketBaslik.Fatura, dbo.HareketBaslik.HareketNo, dbo.HareketBaslik.FatNo, dbo.HareketOdeme.OdemeTuru,                           CASE dbo.HareketBaslik.HareketTuru WHEN 'GI' THEN dbo.HareketBaslik.FaturaNo ELSE ISNULL(dbo.musteri.isim, isnull(dbo.toptanci.isim, '')) END AS Isim,                           dbo.Musteri.MusteriNo, dbo.Toptanci.ToptanciNo, ISNULL                              ((SELECT        SUM(CASE birim WHEN 1 THEN ((SatisFiyati - (AlisFiyati * (1 + (KDV / 100.00)))) * Adet) ELSE  							 ((SatisFiyati - (AlisFiyati * (1 + (KDV / 100.00))))                                                            * (CAST(Adet AS decimal) / 1000)) END)                                  FROM            DBO.Hareket                                  WHERE        DBO.Hareket.HareketNo = DBO.HareketBaslik.HareketNo), 0) AS KAR, dbo.Personel.Isim as Personel FROM            dbo.HareketBaslik INNER JOIN                          dbo.HareketOdeme WITH (NOLOCK) ON dbo.HareketOdeme.HareketNo = dbo.HareketBaslik.HareketNo LEFT JOIN                          dbo.Musteri ON dbo.Musteri.Barkot = dbo.HareketBaslik.Barkod LEFT JOIN                          dbo.Toptanci ON dbo.Toptanci.Barkot = dbo.HareketBaslik.Barkod LEFT JOIN                          dbo.Personel ON dbo.Personel.PersonelNo = dbo.HareketBaslik.PersonelNo WHERE        DBO.HareketBaslik.Toplam != 0 AND dbo.HareketBaslik.HareketTuru NOT IN ('KG', 'KC') UNION SELECT        dbo.AlisFaturasi.Tarih, dbo.Toptanci.Barkot, CASE WHEN dbo.AlisFaturasi.Iade = 0 THEN 'TA' ELSE 'TI' END, ISNULL                              ((SELECT        sum(CASE Birim WHEN 1 THEN (((Adet * BirimFiyat) - (Indirim)) * (KDV * 1) / 100) + (Adet * BirimFiyat) - (Indirim) ELSE  							 (((CAST(Adet AS decimal)                                                            / 1000 * BirimFiyat) - (Indirim)) * (KDV * 1) / 100) + (CAST(Adet AS decimal) / 1000 * BirimFiyat) - (Indirim) END)                                  FROM            dbo.AlisFaturasiUrun                                  WHERE        dbo.AlisFaturasiUrun.FaturaID = dbo.AlisFaturasi.id), 0) - dbo.AlisFaturasi.FatAltiIskontoTutar, cast(0 AS bit), cast(0 AS bit),  								 dbo.AlisFaturasi.ID,                           dbo.AlisFaturasi.FaturaNo, dbo.AlisFaturasi.OdemeTuru, dbo.Toptanci.Isim, '', dbo.Toptanci.ToptanciNo, 0 AS Kar, dbo.Personel.Isim as Personel FROM            dbo.AlisFaturasi INNER JOIN                          dbo.Toptanci ON dbo.Toptanci.Barkot = dbo.AlisFaturasi.ToptanciBarkot LEFT JOIN                          dbo.Personel ON dbo.Personel.PersonelNo = dbo.AlisFaturasi.PersonelNo
+GO
+/****** Object:  View [dbo].[ToptanciIslemViewExtended]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[ToptanciIslemViewExtended] AS SELECT        dbo.HareketBaslik.Tarih, dbo.Toptanci.Barkot, dbo.Toptanci.Isim, dbo.HareketBaslik.HareketTuru, dbo.HareketOdeme.Tutar AS Toplam, dbo.HareketBaslik.Yazdir,                           dbo.HareketBaslik.Fatura, dbo.HareketBaslik.HareketNo, dbo.HareketBaslik.FatNo, dbo.HareketOdeme.OdemeTuru, dbo.HareketOdeme.Tutar AS OdemeTutar FROM            dbo.Toptanci INNER JOIN                          dbo.HareketBaslik ON dbo.Toptanci.Barkot = dbo.HareketBaslik.Barkod INNER JOIN                          dbo.HareketOdeme WITH (NOLOCK) ON dbo.HareketOdeme.HareketNo = dbo.HareketBaslik.HareketNo UNION SELECT        dbo.AlisFaturasi.Tarih, dbo.Toptanci.Barkot, dbo.Toptanci.Isim, CASE WHEN dbo.AlisFaturasi.Iade = 0 THEN 'TA' ELSE 'TI' END, ISNULL                              ((SELECT        sum(CASE Birim WHEN 1 THEN (((Adet * BirimFiyat) - (Indirim)) * (KDV * 1) / 100) + (Adet * BirimFiyat) - (Indirim) ELSE (((CAST(Adet AS decimal)                                                            / 1000 * BirimFiyat) - (Indirim)) * (KDV * 1) / 100) + (CAST(Adet AS decimal) / 1000 * BirimFiyat) - (Indirim) END)                                  FROM            dbo.AlisFaturasiUrun                                  WHERE        dbo.AlisFaturasiUrun.FaturaID = dbo.AlisFaturasi.id), 0) - dbo.AlisFaturasi.FatAltiIskontoTutar, 0, 0, dbo.AlisFaturasi.ID, dbo.AlisFaturasi.FaturaNo,                           dbo.AlisFaturasi.OdemeTuru, dbo.AlisFaturasi.OdemeTutar FROM            dbo.Toptanci INNER JOIN                          dbo.AlisFaturasi ON dbo.Toptanci.Barkot = dbo.AlisFaturasi.ToptanciBarkot
+GO
+/****** Object:  View [dbo].[MusteriIslemViewExtended]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[MusteriIslemViewExtended] AS SELECT dbo.HareketBaslik.Tarih, dbo.Musteri.Barkot, dbo.Musteri.Isim, dbo.HareketBaslik.HareketTuru, dbo.HareketOdeme.Tutar AS Toplam, dbo.HareketBaslik.Yazdir, dbo.HareketBaslik.Fatura, dbo.HareketBaslik.HareketNo,                    dbo.HareketBaslik.FatNo, dbo.HareketOdeme.OdemeTuru, dbo.HareketBaslik.FaturaNo FROM     dbo.Musteri WITH (NOLOCK) INNER JOIN                   dbo.HareketBaslik WITH (NOLOCK) ON dbo.HareketBaslik.Barkod = dbo.Musteri.Barkot INNER JOIN                   dbo.HareketOdeme WITH (NOLOCK) ON dbo.HareketOdeme.HareketNo = dbo.HareketBaslik.HareketNo
+GO
+/****** Object:  Table [dbo].[UrunGrup]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunGrup](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Isim] [nvarchar](255) NOT NULL,
+	[IndirimOran] [decimal](5, 2) NOT NULL,
+	[Puan] [decimal](5, 2) NOT NULL,
+	[ToptanIndirimOran] [decimal](5, 2) NOT NULL,
+	[ToptanPuanOran] [decimal](5, 2) NOT NULL,
+	[PosId] [tinyint] NOT NULL,
+	[HizliUrunGrubu] [bit] NULL,
+	[SigaraGrubu] [bit] NULL,
+ CONSTRAINT [PK_UrunGrup] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[view_StokListesi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[view_StokListesi] AS SELECT dbo.Urun.UrunId, dbo.Urun.Barkot, dbo.Urun.Adi, dbo.Urun.AlisFiyati, dbo.Urun.SatisFiyati, dbo.Urun.KDV, dbo.Urun.Aktif, dbo.Urun.StokAdedi, dbo.UrunGrup.Isim, dbo.Urun.StokKodu FROM     dbo.Urun INNER JOIN                   dbo.UrunGrup ON dbo.Urun.GrupId = dbo.UrunGrup.Id
+GO
+/****** Object:  Table [dbo].[CariList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariList](
+	[CARIID] [bigint] IDENTITY(1,1) NOT NULL,
+	[TIPI] [bigint] NULL,
+	[GRUPID] [bigint] NULL,
+	[CARIKODU] [nvarchar](50) NULL,
+	[UNVAN] [text] NULL,
+	[UNVAN2] [text] NULL,
+	[TEL1] [nvarchar](30) NULL,
+	[TEL2] [nvarchar](30) NULL,
+	[FAX] [nvarchar](30) NULL,
+	[CEPTEL] [nvarchar](30) NULL,
+	[EMAIL] [nvarchar](150) NULL,
+	[KEP] [nvarchar](150) NULL,
+	[VD] [nvarchar](50) NULL,
+	[VN] [nvarchar](20) NULL,
+	[TCKN] [nvarchar](20) NULL,
+	[MERSISNO] [nvarchar](50) NULL,
+	[BACKLIST] [bit] NULL,
+	[AKTIF] [bit] NULL,
+	[OZELKOD1] [nvarchar](50) NULL,
+	[OZELKOD2] [nvarchar](50) NULL,
+	[OZELKOD3] [nvarchar](50) NULL,
+	[VADEGUN] [int] NULL,
+	[RISKLICARI] [bit] NULL,
+	[RISKNOTU] [nvarchar](250) NULL,
+	[KREDILIMITI] [decimal](18, 2) NULL,
+	[ANLIKLIMITI] [bit] NULL,
+	[PUAN] [decimal](18, 2) NULL,
+	[FIYATSECIMI] [nvarchar](50) NULL,
+	[WEBKA] [nvarchar](50) NULL,
+	[WEBSIFRE] [nvarchar](50) NULL,
+	[KAYITTARIHI] [datetime] NULL,
+	[GUNCELLEMETARIHI] [datetime] NULL,
+	[KAYDEDEN] [bigint] NULL,
+	[GUNCELLEYEN] [bigint] NULL,
+	[Pazartesi] [bit] NULL,
+	[Sali] [bit] NULL,
+	[Carsamba] [bit] NULL,
+	[Persembe] [bit] NULL,
+	[Cuma] [bit] NULL,
+	[Cumartesi] [bit] NULL,
+	[Pazar] [bit] NULL,
+ CONSTRAINT [PK_CariList] PRIMARY KEY CLUSTERED 
+(
+	[CARIID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariTipleri]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariTipleri](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[ACIKLAMA] [text] NULL,
+	[OZELKOD1] [nvarchar](50) NULL,
+	[OZELKOD2] [nvarchar](50) NULL,
+	[OZELKOD3] [nvarchar](50) NULL,
+ CONSTRAINT [PK_CariTipleri] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariGruplar]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariGruplar](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[GRUPADI] [nvarchar](50) NULL,
+	[ACIKLAMA] [text] NULL,
+	[OZELKOD1] [nvarchar](50) NULL,
+	[OZELKOD2] [nvarchar](50) NULL,
+	[OZELKOD3] [nvarchar](50) NULL,
+ CONSTRAINT [PK_CariGruplar] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariBakiye]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariBakiye](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[CARIID] [bigint] NOT NULL,
+	[BORC] [decimal](18, 4) NULL,
+	[ALACAK] [decimal](18, 4) NULL,
+	[BAKIYE] [decimal](18, 4) NULL,
+	[DURUM] [int] NULL,
+ CONSTRAINT [PK_CariBakiye] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[CariListView]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[CariListView] AS SELECT dbo.CariList.CARIID, dbo.CariGruplar.GRUPADI, dbo.CariList.CARIKODU, dbo.CariList.UNVAN, dbo.CariList.UNVAN2, dbo.CariList.TEL1, dbo.CariList.TEL2, dbo.CariList.FAX, dbo.CariList.CEPTEL, dbo.CariList.EMAIL, dbo.CariList.KEP,                    dbo.CariList.VD, dbo.CariList.VN, dbo.CariList.TCKN, dbo.CariList.MERSISNO, dbo.CariList.AKTIF, dbo.CariList.BACKLIST, dbo.CariList.OZELKOD1, dbo.CariList.OZELKOD2, dbo.CariList.OZELKOD3, dbo.CariList.VADEGUN,                    dbo.CariList.RISKLICARI, dbo.CariList.RISKNOTU, dbo.CariList.KREDILIMITI, dbo.CariList.ANLIKLIMITI, dbo.CariList.PUAN, dbo.CariList.WEBKA, dbo.CariList.FIYATSECIMI, dbo.CariList.WEBSIFRE, dbo.CariList.KAYITTARIHI,                    dbo.CariList.GUNCELLEMETARIHI, dbo.CariList.KAYDEDEN, dbo.CariList.GUNCELLEYEN, dbo.CariBakiye.BORC, dbo.CariBakiye.ALACAK, dbo.CariBakiye.BAKIYE, dbo.CariTipleri.ACIKLAMA AS TIPI FROM     dbo.CariList INNER JOIN                   dbo.CariGruplar ON dbo.CariList.GRUPID = dbo.CariGruplar.ID INNER JOIN                   dbo.CariBakiye ON dbo.CariList.CARIID = dbo.CariBakiye.ID INNER JOIN                   dbo.CariTipleri ON dbo.CariList.TIPI = dbo.CariTipleri.ID
+GO
+/****** Object:  Table [dbo].[UrunHareket]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunHareket](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[URUNID] [bigint] NULL,
+	[BARKOT] [nvarchar](50) NULL,
+	[KODU] [nvarchar](50) NULL,
+	[ISLEMTIPI] [int] NULL,
+	[CARIID] [bigint] NULL,
+	[TARIH] [datetime] NULL,
+	[SAAT] [time](7) NULL,
+	[KDV] [int] NULL,
+	[KDVDURUM] [int] NULL,
+	[BRUTMALIYET] [decimal](18, 4) NULL,
+	[NETMALIYET] [decimal](18, 4) NULL,
+	[MIKTAR] [decimal](10, 2) NULL,
+	[BIRIM] [int] NULL,
+	[MIKTAR2] [int] NULL,
+	[BIRIM2] [int] NULL,
+	[TOPLAMISK] [decimal](10, 2) NULL,
+	[PERSONELID] [bigint] NULL,
+	[EVRAKNO] [nvarchar](50) NULL,
+	[EvrakID] [bigint] NULL,
+	[ISK1] [decimal](18, 2) NULL,
+	[ISK2] [decimal](18, 2) NULL,
+	[ISK3] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_UrunHareket] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  View [dbo].[view_StokGrsHareket]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE VIEW [dbo].[view_StokGrsHareket] AS SELECT dbo.UrunHareket.ID, dbo.Urun.Barkot, dbo.Urun.Adi AS StokAdi, dbo.UrunHareket.KODU, dbo.UrunHareket.ISLEMTIPI, dbo.CariList.UNVAN, dbo.UrunHareket.TARIH, dbo.UrunHareket.SAAT, dbo.UrunHareket.KDVDURUM,                    dbo.UrunHareket.KDV, dbo.UrunHareket.BRUTMALIYET, dbo.UrunHareket.NETMALIYET * (1 + dbo.UrunHareket.KDV / 100.00) AS NETMALIYET, dbo.UrunHareket.MIKTAR, dbo.UrunHareket.BIRIM, dbo.UrunHareket.MIKTAR2,                    dbo.UrunHareket.BIRIM2, dbo.UrunHareket.ISK2, dbo.UrunHareket.ISK1, dbo.UrunHareket.ISK3, dbo.UrunHareket.TOPLAMISK, dbo.UrunHareket.PERSONELID, dbo.UrunHareket.EVRAKNO, dbo.UrunHareket.EvrakID, dbo.Urun.SatisFiyati,                    dbo.UrunGrup.Isim AS GrupAdi, dbo.UrunHareket.CARIID FROM     dbo.Urun INNER JOIN                   dbo.UrunHareket ON dbo.Urun.UrunId = dbo.UrunHareket.URUNID INNER JOIN                   dbo.CariList ON dbo.UrunHareket.CARIID = dbo.CariList.CARIID INNER JOIN                   dbo.UrunGrup ON dbo.Urun.GrupId = dbo.UrunGrup.Id
+GO
+/****** Object:  Table [dbo].[BankaListesi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[BankaListesi](
+	[BankaId] [bigint] IDENTITY(1,1) NOT NULL,
+	[Banka_BankaAdi] [nvarchar](100) NULL,
+	[Banka_SubeKodu] [varchar](32) NULL,
+	[Banka_SubeAdi] [nvarchar](100) NULL,
+	[Banka_HesapNo] [nvarchar](100) NULL,
+	[Banka_IbanNo] [nvarchar](100) NULL,
+	[Banka_Temsilci] [nvarchar](100) NULL,
+	[Banka_Telefon] [nvarchar](50) NULL,
+	[Banka_Borc] [decimal](10, 4) NULL,
+	[Banka_Alacak] [decimal](10, 4) NULL,
+ CONSTRAINT [PK_BankaListesi] PRIMARY KEY CLUSTERED 
+(
+	[BankaId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariAdresler]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariAdresler](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[CARIID] [bigint] NULL,
+	[TIP] [nvarchar](150) NULL,
+	[ADRES] [text] NULL,
+	[IL] [nvarchar](50) NULL,
+	[ILCE] [nvarchar](50) NULL,
+	[ACIKLAMA] [text] NULL,
+ CONSTRAINT [PK_CariAdresler] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariBankaHesapList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariBankaHesapList](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[CARIID] [bigint] NULL,
+	[BANKAADI] [nvarchar](150) NULL,
+	[HESAPTIPI] [nvarchar](50) NULL,
+	[SUBEKODU] [nvarchar](50) NULL,
+	[SUBEADI] [nvarchar](150) NULL,
+	[HESAPNO] [nvarchar](50) NULL,
+	[IBANNO] [nvarchar](50) NULL,
+	[ACIKLAMA] [text] NULL,
+ CONSTRAINT [PK_CariBankaHesapList] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CariHareketler]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CariHareketler](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[CariId] [bigint] NULL,
+	[Tarih] [datetime] NULL,
+	[IslemTipi] [int] NULL,
+	[EvrakNo] [nvarchar](50) NULL,
+	[Tutar] [decimal](18, 4) NULL,
+	[Aciklama] [text] NULL,
+	[Vade] [datetime] NULL,
+	[BA] [int] NULL,
+	[OdemeTipi] [int] NULL,
+	[Odendimi] [bit] NULL,
+	[OdHarIsl] [bit] NULL,
+	[FatID] [bigint] NULL,
+	[BagFatNo] [nvarchar](50) NULL,
+ CONSTRAINT [PK_CariHareketler] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CekDetay]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CekDetay](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[CekHareketId] [bigint] NULL,
+	[IslemTipi] [nchar](10) NULL,
+	[IslemTarihi] [date] NULL,
+	[OdemeTarihi] [date] NULL,
+	[EvrakNo] [nvarchar](50) NULL,
+	[MEvrakDurumu] [int] NULL,
+	[Tutar] [decimal](10, 2) NULL,
+	[BankaId] [bigint] NULL,
+	[KasaId] [bigint] NULL,
+	[Protesto] [bit] NULL,
+	[Asil_CariId] [bigint] NULL,
+	[KEvrakDurumu] [int] NULL,
+	[Cari_Turu] [nchar](50) NULL,
+	[Asil_Cari_Turu] [nchar](50) NULL,
+ CONSTRAINT [PK_CekDetay] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CekKayitlari]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CekKayitlari](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[CekId] [bigint] NULL,
+	[IslemTarihi] [date] NULL,
+	[VadeTarihi] [date] NULL,
+	[OdemeTarihi] [date] NULL,
+	[BordroNo] [nvarchar](50) NULL,
+	[EvrakNo] [nvarchar](50) NULL,
+	[KesideYeri] [nvarchar](50) NULL,
+	[EvrakTuru] [smallint] NULL,
+	[KendiEvrakDurumum] [smallint] NULL,
+	[Tutar] [decimal](10, 2) NULL,
+	[BankaId] [bigint] NULL,
+	[KasaId] [bigint] NULL,
+	[CariId] [bigint] NULL,
+	[Gelen_AitOlduguBanka] [nvarchar](50) NULL,
+	[Gelen_BankaSubesi] [nvarchar](50) NULL,
+	[Gelen_BankaHesapNo] [nvarchar](50) NULL,
+	[Protesto] [bit] NULL,
+	[Ciro1] [text] NULL,
+	[Ciro2] [text] NULL,
+	[Not1] [text] NULL,
+	[Not2] [text] NULL,
+	[AsilBorclu] [bit] NULL,
+	[Asil_CariId] [bigint] NULL,
+	[MusteriEvrakDurumu] [smallint] NULL,
+	[Cari_Turu] [nchar](50) NULL,
+	[Asil_Cari_Turu] [nchar](50) NULL,
+ CONSTRAINT [PK_CekKayitlari] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CekListesi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CekListesi](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[BankaId] [bigint] NULL,
+	[Cek_CekTanimi] [nvarchar](100) NULL,
+	[Cek_BaslangicNo] [int] NULL,
+	[Cek_BitisNo] [int] NULL,
+	[Cek_AktifNo] [int] NULL,
+ CONSTRAINT [PK_CekListesi] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CekOdeme]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CekOdeme](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[DetayId] [bigint] NULL,
+	[OdemeTuru] [tinyint] NULL,
+	[Tutar] [decimal](10, 2) NULL,
+	[KasaId] [bigint] NULL,
+	[BankaId] [bigint] NULL,
+ CONSTRAINT [PK_CekOdeme] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CekSenet]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CekSenet](
+	[Fatura_No] [bigint] NOT NULL,
+	[No] [nvarchar](255) NOT NULL,
+	[Sahibi] [nvarchar](255) NOT NULL,
+	[Odendi] [bit] NOT NULL,
+	[Tutar] [decimal](10, 2) NOT NULL,
+	[Vade] [date] NOT NULL,
+	[Aciklama] [text] NOT NULL,
+ CONSTRAINT [PK_CekSenet] PRIMARY KEY CLUSTERED 
+(
+	[Fatura_No] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[CRMKonular]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[CRMKonular](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[MusteriID] [bigint] NULL,
+	[Durumu] [int] NULL,
+	[KayitTarihi] [datetime] NULL,
+	[HatirlaticiTarih] [datetime] NULL,
+	[Bolum] [nvarchar](50) NULL,
+	[Konu] [text] NULL,
+	[GonderenPersonel] [int] NULL,
+	[GorevliPersonel] [int] NULL,
+ CONSTRAINT [PK_CRMKonular] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Depo_Baslik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Depo_Baslik](
+	[DepoHareketNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[Depo_Tarih] [datetime] NOT NULL,
+	[Depo_BelgeKodu] [nvarchar](50) NOT NULL,
+	[Depo_KaynakDepo] [nvarchar](50) NOT NULL,
+	[Depo_HedefDepo] [nvarchar](50) NOT NULL,
+	[Depo_Aciklama] [text] NOT NULL,
+	[Depo_Kaydeden] [nvarchar](50) NOT NULL,
+	[Depo_Guncelleyen] [nvarchar](50) NULL,
+	[Depo_KayitTarihi] [datetime] NOT NULL,
+	[Depo_GuncellemeTarihi] [datetime] NULL,
+	[Depo_KaynakID] [int] NOT NULL,
+	[Depo_Hedef_ID] [int] NOT NULL,
+ CONSTRAINT [PK_Depo_Baslik] PRIMARY KEY CLUSTERED 
+(
+	[DepoHareketNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Depo_Hareket]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Depo_Hareket](
+	[DepoHareketDetayNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[DepoHareketNo] [bigint] NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[UrunTuru] [char](2) NOT NULL,
+	[Birim] [tinyint] NOT NULL,
+	[Adet] [int] NOT NULL,
+	[AlisFiyati] [decimal](10, 2) NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[Depo_KaynakID] [int] NOT NULL,
+	[Depo_HedefID] [int] NOT NULL,
+ CONSTRAINT [PK_Depo_Hareket] PRIMARY KEY CLUSTERED 
+(
+	[DepoHareketDetayNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[DepoListesi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[DepoListesi](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Depo_Kodu] [nvarchar](10) NULL,
+	[Depo_Adi] [nvarchar](50) NULL,
+	[Depo_Adres] [text] NULL,
+	[Depo_Fax] [nvarchar](11) NULL,
+	[Depo_Telefon] [nvarchar](11) NULL,
+	[Depo_Yetkili] [nvarchar](50) NULL,
+	[Depo_Kaydeden] [nvarchar](50) NULL,
+	[Depo_Guncelleyen] [nvarchar](50) NULL,
+	[Depo_GuncellemeTarihi] [datetime] NULL,
+	[Depo_SubeKodu] [int] NULL,
+ CONSTRAINT [PK_DepoListesi] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[FaturaIcerik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[FaturaIcerik](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[FATID] [bigint] NULL,
+	[TUR] [int] NULL,
+	[BARKOT] [nvarchar](50) NULL,
+	[STOKADI] [nvarchar](250) NULL,
+	[MIKTAR] [decimal](18, 4) NULL,
+	[BIRIM] [int] NULL,
+	[KDV] [int] NULL,
+	[KDVDURUM] [int] NULL,
+	[BIRIMFIYAT] [decimal](18, 4) NULL,
+	[TOPLAM] [decimal](18, 4) NULL,
+	[ISK1] [decimal](18, 4) NULL,
+	[ISK2] [decimal](18, 4) NULL,
+	[ISK3] [decimal](18, 4) NULL,
+	[ISKSONBF] [decimal](18, 4) NULL,
+	[ISKSONTP] [decimal](18, 4) NULL,
+	[SATISFIYATI] [decimal](10, 2) NULL,
+	[MIKTAR2] [decimal](18, 4) NULL,
+	[BIRIM2] [int] NULL,
+	[KOLIADEDI] [int] NULL,
+	[KDVLIBF] [decimal](18, 4) NULL,
+	[KDVLITP] [decimal](18, 4) NULL,
+	[ISK1TUTAR] [decimal](18, 4) NULL,
+	[ISK2TUTAR] [decimal](18, 4) NULL,
+	[ISK3TUTAR] [decimal](18, 4) NULL,
+	[ISKSONKDVLIBF] [decimal](18, 4) NULL,
+	[ISKSONKDVLITP] [decimal](18, 4) NULL,
+	[ISKTP] [decimal](10, 2) NULL,
+	[STOKKODU] [nvarchar](150) NULL,
+ CONSTRAINT [PK_FaturaIcerik] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[FaturaList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[FaturaList](
+	[FATID] [bigint] IDENTITY(1,1) NOT NULL,
+	[CARIID] [bigint] NULL,
+	[EVRAKSERI] [nvarchar](10) NULL,
+	[EVRAKNO] [nvarchar](50) NULL,
+	[BELGENO] [nvarchar](50) NULL,
+	[FATURATURU] [int] NULL,
+	[KDV] [int] NULL,
+	[DOVIZ] [int] NULL,
+	[CHKODU] [nvarchar](50) NULL,
+	[CHISMI] [nvarchar](250) NULL,
+	[FTTARIH] [datetime] NULL,
+	[SEVKTARIH] [datetime] NULL,
+	[ACIKKAPALI] [int] NULL,
+	[ODEMEGUN] [int] NULL,
+	[OZELKOD1] [nvarchar](150) NULL,
+	[OZELKOD2] [nvarchar](150) NULL,
+	[VD] [nvarchar](50) NULL,
+	[VN] [nvarchar](50) NULL,
+	[TCKN] [nvarchar](50) NULL,
+	[TEL1] [nvarchar](50) NULL,
+	[TEL2] [nvarchar](50) NULL,
+	[FAX] [nvarchar](50) NULL,
+	[CEPTEL] [nvarchar](50) NULL,
+	[ADRES] [text] NULL,
+	[IL] [nvarchar](50) NULL,
+	[ILCE] [nvarchar](50) NULL,
+	[NOT1] [text] NULL,
+	[NOT2] [text] NULL,
+	[STOPAJ] [bit] NULL,
+	[STOPAJYUZDE] [int] NULL,
+	[STOPAJTUTAR] [decimal](18, 2) NULL,
+	[KDV1] [decimal](18, 2) NULL,
+	[KDV8] [decimal](18, 2) NULL,
+	[KDV18] [decimal](18, 2) NULL,
+	[ISK1TUTAR] [decimal](18, 2) NULL,
+	[ISK2TUTAR] [decimal](18, 2) NULL,
+	[ISK3TUTAR] [decimal](18, 2) NULL,
+	[YEKUN] [decimal](18, 2) NULL,
+	[KAYDEDEN] [bigint] NULL,
+	[KAYITTARIHI] [datetime] NULL,
+	[GUNCELLEYEN] [bigint] NULL,
+	[GUNCELLEMETARIHI] [datetime] NULL,
+	[STOKHARISL] [bit] NULL,
+	[CARIHARISL] [bit] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[GrupsalSatis]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[GrupsalSatis](
+	[ID] [bigint] NOT NULL,
+	[GrupAdi] [nvarchar](50) NULL,
+	[UrunAdedi] [decimal](10, 2) NULL,
+	[SatisTutari] [decimal](10, 2) NULL,
+	[Kar] [decimal](10, 2) NULL,
+	[KarYuzde] [int] NULL,
+ CONSTRAINT [PK_GrupsalSatis] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[GunlukRapor]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[GunlukRapor](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[Tarih] [datetime] NULL,
+	[Ciro] [decimal](18, 2) NULL,
+	[Kar] [decimal](18, 2) NULL,
+	[Nakit] [decimal](18, 2) NULL,
+	[KrediKarti] [decimal](18, 2) NULL,
+	[CekSenet] [decimal](18, 2) NULL,
+	[Kupon] [decimal](18, 2) NULL,
+	[Cari] [decimal](18, 2) NULL,
+	[Gider] [decimal](18, 2) NULL,
+	[Tahsilat] [decimal](18, 2) NULL,
+	[Odeme] [decimal](18, 2) NULL,
+	[Alim] [decimal](18, 2) NULL,
+	[iade] [decimal](18, 2) NULL,
+	[MusteriSayisi] [int] NULL,
+	[AlisverisOrtalamasi] [decimal](18, 2) NULL,
+	[KarYuzde] [decimal](18, 2) NULL,
+	[SigaraYuzde] [decimal](18, 2) NULL,
+	[Sigara] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_GunlukRapor] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[HizliUrunResimler]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[HizliUrunResimler](
+	[Name] [varchar](16) NOT NULL,
+	[Resim] [image] NULL,
+	[Value] [text] NULL,
+	[Barkot] [nvarchar](32) NULL,
+ CONSTRAINT [PK_HizliUrunResimler] PRIMARY KEY CLUSTERED 
+(
+	[Name] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Il]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Il](
+	[no] [int] NOT NULL,
+	[adi] [nvarchar](100) NOT NULL,
+ CONSTRAINT [PK_Il] PRIMARY KEY CLUSTERED 
+(
+	[no] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Ilce]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Ilce](
+	[kod] [int] NOT NULL,
+	[ilno] [int] NOT NULL,
+	[adi] [nvarchar](100) NOT NULL,
+ CONSTRAINT [PK_Ilce] PRIMARY KEY CLUSTERED 
+(
+	[kod] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[iptalislemler]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[iptalislemler](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[tarih] [datetime] NULL,
+	[barkot] [nvarchar](50) NULL,
+	[stokadi] [nvarchar](150) NULL,
+	[Personel] [nvarchar](50) NULL,
+	[Adet] [int] NULL,
+	[BirimFiyat] [decimal](18, 2) NULL,
+	[Tutar] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_iptalislemler] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[IrsaliyeList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[IrsaliyeList](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[CariId] [int] NOT NULL,
+	[CariKodu] [nvarchar](50) NOT NULL,
+	[CariAdi] [nvarchar](100) NOT NULL,
+	[CariAdres] [text] NULL,
+	[CariVergiDairesi] [nvarchar](50) NULL,
+	[CariVergiNumarasi] [nvarchar](50) NULL,
+	[islemTarihi] [datetime] NOT NULL,
+	[VadeTarihi] [datetime] NOT NULL,
+	[irsaliyeNo] [nvarchar](50) NOT NULL,
+	[Aciklama] [text] NULL,
+	[SevkAktif] [int] NULL,
+	[SevkTicariUnvan] [nvarchar](100) NULL,
+	[SevkAdiSoyadi] [nvarchar](100) NULL,
+	[SevkIl] [nvarchar](100) NULL,
+	[SevkIlce] [nvarchar](100) NULL,
+	[SevkAdres] [text] NULL,
+ CONSTRAINT [PK_IrsaliyeList] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Kasa]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Kasa](
+	[KasaNo] [bigint] IDENTITY(1,1) NOT NULL,
+	[PosKasaNo] [int] NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[KasaAdi] [nvarchar](255) NOT NULL,
+	[Aciklama] [ntext] NOT NULL,
+	[KasaTipi] [tinyint] NOT NULL,
+ CONSTRAINT [PK_Kasa] PRIMARY KEY CLUSTERED 
+(
+	[KasaNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Kupon]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Kupon](
+	[Kuponid] [bigint] IDENTITY(1,1) NOT NULL,
+	[Aciklama] [nvarchar](255) NULL,
+	[Deger] [decimal](10, 2) NULL,
+	[StartKupon] [date] NULL,
+	[EndKupon] [date] NULL,
+	[GunlukStartKullanim] [time](7) NULL,
+	[GunlukEndKullanim] [time](7) NULL,
+	[AktivasyonTutar] [decimal](10, 2) NULL,
+	[KuponTuru] [tinyint] NULL,
+	[UrunGrup] [nvarchar](250) NULL,
+	[Kasa] [bigint] NULL
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[KuryeList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[KuryeList](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[KuryeAdi] [nvarchar](150) NOT NULL,
+	[Telefon] [nvarchar](50) NULL,
+	[Bakiye] [decimal](18, 2) NULL,
+	[Sifre] [nvarchar](50) NULL,
+	[GsServis] [bit] NULL,
+ CONSTRAINT [PK_KuryeList] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[KuryeRapor]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[KuryeRapor](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Tarih] [datetime] NOT NULL,
+	[Kuryeid] [bigint] NOT NULL,
+	[KuryeAdi] [nvarchar](50) NOT NULL,
+	[Ciro] [decimal](18, 2) NOT NULL,
+	[Nakit] [decimal](18, 2) NOT NULL,
+	[Pos] [decimal](18, 2) NOT NULL,
+	[HizmetBedeli] [decimal](18, 2) NOT NULL,
+	[Fark] [decimal](18, 2) NOT NULL,
+	[ServisSayisi] [int] NULL,
+	[KuryeOdemesi] [decimal](18, 2) NULL,
+	[KuryeFark] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_KuryeRapor] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[MusteriOzelFiyat]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[MusteriOzelFiyat](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Customer] [bigint] NULL,
+	[Barkot] [nvarchar](50) NULL,
+	[Fiyat] [decimal](10, 2) NULL,
+ CONSTRAINT [PK_MusteriOzelFiyat] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Parameter]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Parameter](
+	[Name] [varchar](16) NOT NULL,
+	[Value] [text] NOT NULL,
+ CONSTRAINT [PK_Parameter] PRIMARY KEY CLUSTERED 
+(
+	[Name] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[PersonelKasa]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PersonelKasa](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[PersonelNo] [bigint] NOT NULL,
+	[Tarih] [date] NOT NULL,
+	[Tip] [char](2) NOT NULL,
+	[Aciklama] [text] NOT NULL,
+	[Tutar] [decimal](10, 2) NOT NULL,
+ CONSTRAINT [PK_PersonelKasa] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[PersonelYetki]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[PersonelYetki](
+	[PersonelNo] [bigint] NOT NULL,
+	[Yonetici] [bit] NOT NULL,
+	[Tahsilat] [bit] NOT NULL,
+	[Gider] [bit] NOT NULL,
+	[Personel] [bit] NOT NULL,
+	[Odeme] [bit] NOT NULL,
+	[OdemeYonetim] [bit] NOT NULL,
+	[TahsilatYonetim] [bit] NOT NULL,
+	[GiderYonetim] [bit] NOT NULL,
+	[ToptanciYonetim] [bit] NOT NULL,
+	[MusteriYonetim] [bit] NOT NULL,
+	[UrunYonetim] [bit] NOT NULL,
+	[RaporYonetim] [bit] NOT NULL,
+	[Transfer] [bit] NOT NULL,
+	[SatisFiyatDegistir] [bit] NOT NULL,
+	[SonSatislar] [bit] NOT NULL,
+	[SdUrunKaydi] [bit] NOT NULL,
+	[SdMusteriKaydi] [bit] NOT NULL,
+	[SdToptanciKaydi] [bit] NOT NULL,
+	[SatistaEscKullanabilir] [bit] NOT NULL,
+	[SatirSilAktif] [bit] NOT NULL,
+	[SatistaIskontoYapabilir] [bit] NOT NULL,
+	[GiderGirisiYapamaz] [bit] NOT NULL,
+	[TahsilatGirisiYapamaz] [bit] NOT NULL,
+	[OdemeGirisiYapamaz] [bit] NOT NULL,
+	[MuhtelifSatisYapamaz] [bit] NOT NULL,
+	[iadeAlimiYapamaz] [bit] NOT NULL,
+	[SdAlisFaturasiGirebilir] [bit] NOT NULL,
+	[SdStokEkleyebilir] [bit] NOT NULL,
+	[StokKartiStokDuzenleme] [bit] NULL,
+ CONSTRAINT [PK_PersonelYetki] PRIMARY KEY CLUSTERED 
+(
+	[PersonelNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ReceteBaslik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ReceteBaslik](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[ReceteAdi] [nvarchar](50) NULL,
+	[UrunId] [bigint] NULL,
+	[Barkot] [nvarchar](50) NULL,
+	[UrunAdi] [nvarchar](150) NULL,
+	[Tarih] [datetime] NULL,
+ CONSTRAINT [PK_ReceteBaslik] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ReceteIcerik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ReceteIcerik](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[ReceteId] [bigint] NULL,
+	[UrunId] [bigint] NULL,
+	[Barkot] [nvarchar](50) NULL,
+	[UrunAdi] [nvarchar](150) NULL,
+	[MaliyetFiyati] [decimal](18, 4) NULL,
+	[Miktar] [decimal](18, 4) NULL,
+ CONSTRAINT [PK_ReceteIcerik] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Resto_Masalar]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Resto_Masalar](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[MasaAdi] [nvarchar](50) NULL,
+	[GrupID] [int] NOT NULL,
+ CONSTRAINT [PK_Resto_Masalar] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Resto_Masalar_Grup]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Resto_Masalar_Grup](
+	[ID] [int] IDENTITY(1,1) NOT NULL,
+	[GrupAdi] [nvarchar](50) NULL,
+ CONSTRAINT [PK_Resto_Masalar_Grup] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SayimBaslik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SayimBaslik](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[SayimAdi] [nvarchar](150) NOT NULL,
+	[BaslangicTarihi] [datetime] NOT NULL,
+	[BitisTarihi] [datetime] NOT NULL,
+	[SayilacakUrunMiktari] [decimal](18, 0) NOT NULL,
+	[SayilanUrunMiktari] [decimal](18, 0) NOT NULL,
+	[SayilanUrunTutari] [decimal](18, 2) NOT NULL,
+	[SayilmayanUrunMiktari] [decimal](18, 0) NOT NULL,
+	[SayimFarkiTutar] [decimal](18, 2) NOT NULL,
+	[SSTSB] [decimal](18, 2) NOT NULL,
+	[SOTSB] [decimal](18, 2) NOT NULL,
+	[Aktif] [bit] NOT NULL,
+ CONSTRAINT [PK_SayimBaslik] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SayimIcerikNew]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SayimIcerikNew](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[SayimID] [bigint] NOT NULL,
+	[Urunid] [bigint] NOT NULL,
+	[Barkot] [nvarchar](150) NOT NULL,
+	[StokAdi] [nvarchar](150) NOT NULL,
+	[SayimOncesiStokMiktari] [decimal](18, 2) NOT NULL,
+	[SayimMiktari] [decimal](18, 2) NOT NULL,
+	[SayimBedeli] [decimal](18, 2) NOT NULL,
+	[SayimFarki] [decimal](18, 2) NOT NULL,
+	[SayimFarkiTutar] [decimal](18, 2) NULL,
+ CONSTRAINT [PK_SayimIcerik] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Sekme]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Sekme](
+	[SekmeId] [bigint] IDENTITY(1,1) NOT NULL,
+	[Baslik] [varchar](255) NOT NULL,
+ CONSTRAINT [PK_Sekme] PRIMARY KEY CLUSTERED 
+(
+	[SekmeId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SekmeDugme]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SekmeDugme](
+	[DugmeId] [bigint] IDENTITY(1,1) NOT NULL,
+	[SekmeId] [bigint] NOT NULL,
+	[Barkot] [varchar](32) NOT NULL,
+	[Metin] [varchar](255) NOT NULL,
+	[Resim] [image] NULL,
+ CONSTRAINT [PK_SekmeDugme] PRIMARY KEY CLUSTERED 
+(
+	[DugmeId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ServisListesi]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ServisListesi](
+	[id] [bigint] IDENTITY(1,1) NOT NULL,
+	[hbno] [bigint] NOT NULL,
+	[Telefon] [nvarchar](50) NOT NULL,
+	[AdiSoyadi] [nvarchar](150) NULL,
+	[Adres] [text] NULL,
+	[AdresTanim] [text] NULL,
+	[ToplamTutar] [decimal](18, 2) NULL,
+	[Tarih] [datetime] NULL,
+	[Kuryeid] [bigint] NULL,
+	[KuryeAdi] [nvarchar](50) NULL,
+	[HizmetBedelii] [decimal](18, 2) NULL,
+	[TeslimatDurum] [bit] NULL,
+	[Gunsonu] [bit] NULL,
+	[iptal] [bit] NULL,
+	[FisNo] [nvarchar](50) NULL,
+ CONSTRAINT [PK_ServisListesi] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[StokFiyatDegisimIcerik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[StokFiyatDegisimIcerik](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[FormId] [bigint] NULL,
+	[UrunId] [bigint] NULL,
+	[Barkot] [nvarchar](50) NULL,
+	[StokAdi] [nvarchar](250) NULL,
+	[EskiMaliyet] [decimal](18, 4) NULL,
+	[Maliyet] [decimal](18, 4) NULL,
+	[EskiSatis] [decimal](18, 4) NULL,
+	[Satis] [decimal](18, 4) NULL,
+	[Tarih] [datetime] NULL,
+ CONSTRAINT [PK_StokFiyatDegisimIcerik] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[StokFiyatHareketleriBaslik]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[StokFiyatHareketleriBaslik](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Aciklama] [text] NULL,
+	[Tarih] [datetime] NULL,
+	[EvrakNO] [nvarchar](50) NULL,
+ CONSTRAINT [PK_StokFiyatHareketleriBaslik] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[StokGiris]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[StokGiris](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[Tarih] [datetime] NULL,
+	[BelgeNo] [varchar](32) NULL,
+	[BelgeAdi] [nvarchar](50) NULL,
+	[Aciklama] [text] NULL,
+	[AraToplam] [decimal](10, 2) NULL,
+	[Kdv] [decimal](10, 2) NULL,
+	[Tutar] [decimal](10, 2) NULL,
+	[ProcessStock] [bit] NULL,
+	[PersonelNo] [bigint] NULL,
+	[Guncelleyen] [bigint] NULL,
+ CONSTRAINT [PK_StokGiris] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[StokGirisUrun]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[StokGirisUrun](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[HareketID] [bigint] NULL,
+	[HareketOrder] [int] NULL,
+	[Barkot] [varchar](32) NULL,
+	[UrunAdi] [nvarchar](250) NULL,
+	[Birim] [tinyint] NULL,
+	[Adet] [int] NULL,
+	[BirimFiyat] [decimal](18, 4) NULL,
+	[BirimFiyatKDVli] [decimal](18, 4) NULL,
+	[Fiyat] [decimal](18, 2) NULL,
+	[FiyatKDVDahil] [decimal](18, 2) NULL,
+	[KDV] [tinyint] NULL,
+ CONSTRAINT [PK_StokGirisUrun] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SubeList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SubeList](
+	[SubeId] [bigint] IDENTITY(1,1) NOT NULL,
+	[SubeAdi] [nvarchar](150) NOT NULL,
+	[OzelKod] [nvarchar](150) NULL,
+	[Aciklama] [text] NULL,
+ CONSTRAINT [PK_SubeList] PRIMARY KEY CLUSTERED 
+(
+	[SubeId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SubeStokMiktarlariList]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SubeStokMiktarlariList](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[SubeId] [bigint] NULL,
+	[DepoId] [bigint] NULL,
+	[UrunId] [bigint] NULL,
+	[Stok] [decimal](18, 4) NULL,
+ CONSTRAINT [PK_SubeStokMiktarlariList] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunAltGrup]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunAltGrup](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[AltGrupAdi] [nvarchar](250) NOT NULL,
+	[AnaGrupId] [bigint] NOT NULL,
+	[Aciklama] [nvarchar](500) NULL,
+ CONSTRAINT [PK_UrunAltGrup] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunBeden]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunBeden](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[BedenNo] [int] NULL,
+	[BedenX] [nvarchar](50) NULL,
+ CONSTRAINT [PK_UrunBeden] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunFiyatGuncellemeleri]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunFiyatGuncellemeleri](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[UrunBarkot] [varchar](32) NOT NULL,
+	[EskiAlisFiyat] [decimal](10, 4) NOT NULL,
+	[YeniAlisFiyat] [decimal](10, 4) NOT NULL,
+	[PersonelAdi] [varchar](100) NOT NULL,
+	[Tarih] [datetime] NOT NULL,
+	[EskiSatisFiyat] [decimal](10, 4) NOT NULL,
+	[YeniSatisFiyat] [decimal](10, 4) NOT NULL,
+	[UrunAdi] [nvarchar](255) NOT NULL,
+	[GuncellemeYeri] [nvarchar](50) NULL,
+	[EskiTaksitliFiyat] [decimal](10, 2) NULL,
+	[YeniTaksitliFiyat] [decimal](10, 2) NULL,
+	[EskiAdi] [nvarchar](255) NULL,
+	[YeniAdi] [nvarchar](255) NULL,
+	[Silindimi] [bit] NULL,
+ CONSTRAINT [PK_UrunFiyatGuncellemeleri] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunHareketBaslangic]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunHareketBaslangic](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[UrunId] [bigint] NULL,
+	[Barkot] [varchar](32) NULL,
+	[Adi] [nvarchar](255) NULL,
+	[EskiStok] [int] NULL,
+	[Stok] [int] NULL,
+	[IslemTuru] [nvarchar](50) NULL,
+	[Tarih] [datetime] NULL,
+	[Personel] [bigint] NOT NULL,
+	[EvrakID] [bigint] NULL,
+ CONSTRAINT [PK_UrunHareketBaslangic] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunLoc]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunLoc](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[UrunID] [bigint] NULL,
+	[LocX] [int] NULL,
+	[LocY] [int] NULL,
+	[Barkot] [nvarchar](50) NULL,
+	[Width] [nchar](10) NULL,
+	[Genislik] [int] NULL,
+	[Height] [int] NULL,
+	[Font] [nvarchar](50) NULL,
+	[FontSize] [int] NULL,
+	[BGColor] [nvarchar](50) NULL,
+ CONSTRAINT [PK_UrunLoc] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunMarka]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunMarka](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Isim] [nvarchar](150) NULL,
+ CONSTRAINT [PK_UrunMarka] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunNumara]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunNumara](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Numara] [int] NOT NULL,
+ CONSTRAINT [PK_UrunNumara] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunRenk]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunRenk](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[RenkAdi] [nvarchar](50) NULL,
+	[RenkKodu] [nvarchar](50) NULL,
+ CONSTRAINT [PK_UrunRenk] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunReyon]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunReyon](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[ReyonAdi] [nvarchar](250) NOT NULL,
+	[ReyonBolum] [nvarchar](250) NOT NULL,
+	[ReyonKat] [tinyint] NOT NULL,
+ CONSTRAINT [PK_UrunReyon] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunStokKodlariCrx]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunStokKodlariCrx](
+	[ID] [bigint] IDENTITY(1,1) NOT NULL,
+	[URUNID] [bigint] NULL,
+	[STOKKODU] [nvarchar](150) NULL,
+	[CARIID] [bigint] NULL,
+	[CARI] [nvarchar](250) NULL,
+ CONSTRAINT [PK_UrunStokKodlariCrx] PRIMARY KEY CLUSTERED 
+(
+	[ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[UrunTedarikci]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[UrunTedarikci](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[Isim] [nvarchar](150) NULL,
+ CONSTRAINT [PK_UrunTedarikci] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[YazarkasaGrup]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[YazarkasaGrup](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[GrupAdi] [nvarchar](50) NULL,
+	[KDV] [tinyint] NULL,
+ CONSTRAINT [PK_YazarkasaGrup] PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+ALTER TABLE [dbo].[AlisFaturasiUrun] ADD  CONSTRAINT [DF_AlisFaturasiUrun_Aciklama]  DEFAULT ('') FOR [Aciklama]
+GO
+ALTER TABLE [dbo].[CekSenet] ADD  CONSTRAINT [DF_CekSenet_Fatura_No]  DEFAULT ((0)) FOR [Fatura_No]
+GO
+ALTER TABLE [dbo].[CekSenet] ADD  CONSTRAINT [DF_CekSenet_Tutar]  DEFAULT ((0.0000)) FOR [Tutar]
+GO
+ALTER TABLE [dbo].[GunlukRapor] ADD  DEFAULT (NULL) FOR [SigaraYuzde]
+GO
+ALTER TABLE [dbo].[GunlukRapor] ADD  DEFAULT (NULL) FOR [Sigara]
+GO
+ALTER TABLE [dbo].[Hareket] ADD  CONSTRAINT [DF_Hareket_Aciklama]  DEFAULT ('') FOR [Aciklama]
+GO
+ALTER TABLE [dbo].[Hareket] ADD  DEFAULT (NULL) FOR [Sigara]
+GO
+ALTER TABLE [dbo].[Hareket] ADD  DEFAULT (NULL) FOR [SigaraYuzde]
+GO
+ALTER TABLE [dbo].[HareketBaslik] ADD  CONSTRAINT [DF_HareketBaslik_Guncelleyen]  DEFAULT ((0)) FOR [Guncelleyen]
+GO
+ALTER TABLE [dbo].[Kasa] ADD  CONSTRAINT [DF_Kasa_KasaTipi]  DEFAULT ((0)) FOR [KasaTipi]
+GO
+ALTER TABLE [dbo].[KuryeRapor] ADD  DEFAULT (NULL) FOR [KuryeOdemesi]
+GO
+ALTER TABLE [dbo].[KuryeRapor] ADD  DEFAULT (NULL) FOR [KuryeFark]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Alacak]  DEFAULT ((0)) FOR [Alacak]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Toptanci]  DEFAULT ((0)) FOR [Toptanci]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Adres]  DEFAULT ('') FOR [Adres]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_AnlikLimit]  DEFAULT ((0)) FOR [AnlikLimit]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_VadeGunu]  DEFAULT ((1)) FOR [VadeGunu]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Tipi]  DEFAULT ('VE') FOR [Tipi]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Puan]  DEFAULT ((0)) FOR [Puan]
+GO
+ALTER TABLE [dbo].[Musteri] ADD  CONSTRAINT [DF_Musteri_Aktif]  DEFAULT ((1)) FOR [Aktif]
+GO
+ALTER TABLE [dbo].[Personel] ADD  CONSTRAINT [DF_Personel_AlacakToplam]  DEFAULT ((0)) FOR [AlacakToplam]
+GO
+ALTER TABLE [dbo].[Personel] ADD  CONSTRAINT [DF_Personel_BorcToplam]  DEFAULT ((0)) FOR [BorcToplam]
+GO
+ALTER TABLE [dbo].[Personel] ADD  CONSTRAINT [df_Personel_kasano]  DEFAULT ((1)) FOR [KasaNo]
+GO
+ALTER TABLE [dbo].[Personel] ADD  CONSTRAINT [DF_Personel_Aktif]  DEFAULT ((1)) FOR [Aktif]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Yonetici]  DEFAULT ((1)) FOR [Yonetici]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Tahsilat]  DEFAULT ((1)) FOR [Tahsilat]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Gider]  DEFAULT ((1)) FOR [Gider]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Personel]  DEFAULT ((1)) FOR [Personel]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Odeme]  DEFAULT ((1)) FOR [Odeme]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_OdemeYonetim]  DEFAULT ((1)) FOR [OdemeYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_TahsilatYonetim]  DEFAULT ((1)) FOR [TahsilatYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_GiderYonetim]  DEFAULT ((1)) FOR [GiderYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_ToptanciYonetim]  DEFAULT ((1)) FOR [ToptanciYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_MusteriYonetim]  DEFAULT ((1)) FOR [MusteriYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_UrunYonetim]  DEFAULT ((1)) FOR [UrunYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_RaporYonetim]  DEFAULT ((1)) FOR [RaporYonetim]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_Transfer]  DEFAULT ((1)) FOR [Transfer]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SatisFiyatDegistir]  DEFAULT ((1)) FOR [SatisFiyatDegistir]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SonSatislar]  DEFAULT ((1)) FOR [SonSatislar]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SdUrunKaydi]  DEFAULT ((1)) FOR [SdUrunKaydi]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SdMusteriKaydi]  DEFAULT ((1)) FOR [SdMusteriKaydi]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SdToptanciKaydi]  DEFAULT ((1)) FOR [SdToptanciKaydi]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SatistaEscKullanabilir]  DEFAULT ((1)) FOR [SatistaEscKullanabilir]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SatirSilAktif]  DEFAULT ((1)) FOR [SatirSilAktif]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SatistaIskontoYapabilir]  DEFAULT ((1)) FOR [SatistaIskontoYapabilir]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_GiderGirisiYapamaz]  DEFAULT ((1)) FOR [GiderGirisiYapamaz]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_TahsilatGirisiYapamaz]  DEFAULT ((1)) FOR [TahsilatGirisiYapamaz]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_OdemeGirisiYapamaz]  DEFAULT ((1)) FOR [OdemeGirisiYapamaz]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_MuhtelifSatisYapamaz]  DEFAULT ((1)) FOR [MuhtelifSatisYapamaz]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_iadeAlimiYapamaz]  DEFAULT ((1)) FOR [iadeAlimiYapamaz]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SdAlisFaturasiGirebilir]  DEFAULT ((1)) FOR [SdAlisFaturasiGirebilir]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_SdStokEkleyebilir]  DEFAULT ((1)) FOR [SdStokEkleyebilir]
+GO
+ALTER TABLE [dbo].[PersonelYetki] ADD  CONSTRAINT [DF_PersonelYetki_StokKartiStokDuzenlemei]  DEFAULT ((0)) FOR [StokKartiStokDuzenleme]
+GO
+ALTER TABLE [dbo].[SubeStokMiktarlariList] ADD  CONSTRAINT [DF_SubeStokMiktarlariList_Stok]  DEFAULT ((0)) FOR [Stok]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Il]  DEFAULT ('') FOR [Il]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Ilce]  DEFAULT ('') FOR [Ilce]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Turu]  DEFAULT ((0)) FOR [Turu]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Telefon2]  DEFAULT ('') FOR [Telefon2]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Iskonto]  DEFAULT ((0)) FOR [Iskonto]
+GO
+ALTER TABLE [dbo].[Toptanci] ADD  CONSTRAINT [DF_Toptanci_Aktif]  DEFAULT ((1)) FOR [Aktif]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_Alan1]  DEFAULT ('') FOR [Alan1]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_Alan2]  DEFAULT ('') FOR [Alan2]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_YazarKasa]  DEFAULT ((1)) FOR [YazarKasa]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_Yeni]  DEFAULT ((1)) FOR [Yeni]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_Degisti]  DEFAULT ((1)) FOR [FiyatDegisti]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_FiyatDegismeTarihi]  DEFAULT (getdate()) FOR [FiyatDegismeTarihi]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_SatisFiyatiKrediKarti]  DEFAULT ((0)) FOR [SatisFiyatiKrediKarti]
+GO
+ALTER TABLE [dbo].[Urun] ADD  CONSTRAINT [DF_Urun_SatisFiyatiMusteri]  DEFAULT ((0)) FOR [SatisFiyatiMusteri]
+GO
+ALTER TABLE [dbo].[UrunFiyatGuncellemeleri] ADD  CONSTRAINT [DF_UrunFiyatGuncellemeleri_Tarih]  DEFAULT (getdate()) FOR [Tarih]
+GO
+ALTER TABLE [dbo].[UrunGrup] ADD  CONSTRAINT [DF_UrunGrup_PosId]  DEFAULT ((0)) FOR [PosId]
+GO
+ALTER TABLE [dbo].[UrunHareket] ADD  DEFAULT (NULL) FOR [ISK1]
+GO
+ALTER TABLE [dbo].[UrunHareket] ADD  DEFAULT (NULL) FOR [ISK2]
+GO
+ALTER TABLE [dbo].[UrunHareket] ADD  DEFAULT (NULL) FOR [ISK3]
+GO
+ALTER TABLE [dbo].[AlisFaturasiUrun]  WITH CHECK ADD  CONSTRAINT [FK_AlisFaturasiUrun_AlisFaturasi] FOREIGN KEY([FaturaID])
+REFERENCES [dbo].[AlisFaturasi] ([ID])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[AlisFaturasiUrun] CHECK CONSTRAINT [FK_AlisFaturasiUrun_AlisFaturasi]
+GO
+ALTER TABLE [dbo].[CekDetay]  WITH CHECK ADD  CONSTRAINT [FK_CekDetay_CekKayitlari] FOREIGN KEY([CekHareketId])
+REFERENCES [dbo].[CekKayitlari] ([Id])
+GO
+ALTER TABLE [dbo].[CekDetay] CHECK CONSTRAINT [FK_CekDetay_CekKayitlari]
+GO
+ALTER TABLE [dbo].[CekOdeme]  WITH CHECK ADD  CONSTRAINT [FK_CekOdeme_CekDetay] FOREIGN KEY([DetayId])
+REFERENCES [dbo].[CekDetay] ([Id])
+GO
+ALTER TABLE [dbo].[CekOdeme] CHECK CONSTRAINT [FK_CekOdeme_CekDetay]
+GO
+ALTER TABLE [dbo].[Hareket]  WITH CHECK ADD  CONSTRAINT [FK_Hareket_HareketBaslik] FOREIGN KEY([HareketNo])
+REFERENCES [dbo].[HareketBaslik] ([HareketNo])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[Hareket] CHECK CONSTRAINT [FK_Hareket_HareketBaslik]
+GO
+ALTER TABLE [dbo].[HareketOdeme]  WITH CHECK ADD  CONSTRAINT [FK_HareketOdeme_HareketBaslik] FOREIGN KEY([HareketNo])
+REFERENCES [dbo].[HareketBaslik] ([HareketNo])
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[HareketOdeme] CHECK CONSTRAINT [FK_HareketOdeme_HareketBaslik]
+GO
+ALTER TABLE [dbo].[Ilce]  WITH CHECK ADD  CONSTRAINT [FK_Ilce_Il] FOREIGN KEY([ilno])
+REFERENCES [dbo].[Il] ([no])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[Ilce] CHECK CONSTRAINT [FK_Ilce_Il]
+GO
+ALTER TABLE [dbo].[PersonelKasa]  WITH CHECK ADD  CONSTRAINT [FK_PersonelKasa_Personel] FOREIGN KEY([PersonelNo])
+REFERENCES [dbo].[Personel] ([PersonelNo])
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[PersonelKasa] CHECK CONSTRAINT [FK_PersonelKasa_Personel]
+GO
+ALTER TABLE [dbo].[PersonelYetki]  WITH CHECK ADD  CONSTRAINT [FK_PersonelYetki_Personel] FOREIGN KEY([PersonelNo])
+REFERENCES [dbo].[Personel] ([PersonelNo])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[PersonelYetki] CHECK CONSTRAINT [FK_PersonelYetki_Personel]
+GO
+ALTER TABLE [dbo].[SekmeDugme]  WITH CHECK ADD  CONSTRAINT [FK_SekmeDugme_Sekme] FOREIGN KEY([SekmeId])
+REFERENCES [dbo].[Sekme] ([SekmeId])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[SekmeDugme] CHECK CONSTRAINT [FK_SekmeDugme_Sekme]
+GO
+ALTER TABLE [dbo].[StokFiyatDegisimIcerik]  WITH CHECK ADD  CONSTRAINT [FK_StokFiyatDegisimIcerik_StokFiyatHareketleriBaslik] FOREIGN KEY([FormId])
+REFERENCES [dbo].[StokFiyatHareketleriBaslik] ([Id])
+GO
+ALTER TABLE [dbo].[StokFiyatDegisimIcerik] CHECK CONSTRAINT [FK_StokFiyatDegisimIcerik_StokFiyatHareketleriBaslik]
+GO
+ALTER TABLE [dbo].[StokGirisUrun]  WITH CHECK ADD  CONSTRAINT [FK_StokGirisUrun_StokGiris] FOREIGN KEY([HareketID])
+REFERENCES [dbo].[StokGiris] ([ID])
+GO
+ALTER TABLE [dbo].[StokGirisUrun] CHECK CONSTRAINT [FK_StokGirisUrun_StokGiris]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunAltGrup] FOREIGN KEY([AltGrupId])
+REFERENCES [dbo].[UrunAltGrup] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunAltGrup]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunBeden] FOREIGN KEY([BedenId])
+REFERENCES [dbo].[UrunBeden] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunBeden]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunGrup] FOREIGN KEY([GrupId])
+REFERENCES [dbo].[UrunGrup] ([Id])
+ON DELETE CASCADE
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunGrup]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunNumara] FOREIGN KEY([NumaraId])
+REFERENCES [dbo].[UrunNumara] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunNumara]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunRenk] FOREIGN KEY([RenkId])
+REFERENCES [dbo].[UrunRenk] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunRenk]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_UrunReyon] FOREIGN KEY([ReyonId])
+REFERENCES [dbo].[UrunReyon] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_UrunReyon]
+GO
+ALTER TABLE [dbo].[Urun]  WITH CHECK ADD  CONSTRAINT [FK_Urun_YazarkasaGrup] FOREIGN KEY([YazarKasaGrupId])
+REFERENCES [dbo].[YazarkasaGrup] ([Id])
+GO
+ALTER TABLE [dbo].[Urun] CHECK CONSTRAINT [FK_Urun_YazarkasaGrup]
+GO
+/****** Object:  StoredProcedure [dbo].[KasaRaporu]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE PROCEDURE [dbo].[KasaRaporu] 	@StartDate Date, 	@EndDate Date AS BEGIN 	SET NOCOUNT ON;     SELECT 	K.KasaAdi, 	K.Bakiye + ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'KG' and KasaNo=k.KasaNo and Tarih > K.KapanisTarihi),0) AS Giris, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'KC' and KasaNo=k.KasaNo and Tarih > K.KapanisTarihi),0) AS Cikis, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'SA' and KasaNo=k.KasaNo AND OdemeTuru=1 and Tarih > K.KapanisTarihi),0) AS Nakit, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'SA' and KasaNo=k.KasaNo AND OdemeTuru=2 and Tarih > K.KapanisTarihi),0) AS KrediKarti, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'SA' and KasaNo=k.KasaNo AND OdemeTuru in (3,4) and Tarih > K.KapanisTarihi),0) AS CekSenet, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'SA' and KasaNo=k.KasaNo AND OdemeTuru =5 and Tarih > K.KapanisTarihi),0) AS Veresiye, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'TH' and KasaNo=k.KasaNo and Barkod in (select Barkot from Musteri) and Tarih > K.KapanisTarihi),0) AS Tahsilat, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'TH' and KasaNo=k.KasaNo and Barkod in (select Barkot from Toptanci) and Tarih > K.KapanisTarihi),0) AS Odeme, 	ISNULL((SELECT SUM(TOPLAM) FROM HareketBaslik WHERE HareketTuru = 'GI' and KasaNo=k.KasaNo and Tarih > K.KapanisTarihi),0) AS Gider FROM  	Kasa K END
+GO
+/****** Object:  StoredProcedure [dbo].[SearchUrun]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE PROCEDURE [dbo].[SearchUrun] 	 	@Query nvarchar(255) AS BEGIN 	 	 	SET NOCOUNT ON;      	select top 50 Adi from Urun where  Adi like N'%' + replace(@Query,' ','%') + '%' and aktif=1 order by Adi asc END
+GO
+/****** Object:  StoredProcedure [dbo].[UrunHareketTarih]    Script Date: 11.03.2026 21:50:48 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ CREATE PROCEDURE [dbo].[UrunHareketTarih] 	 	@StartDate Date, 	 	@EndDate Date  AS BEGIN 	 	SET NOCOUNT ON; 	 	SET @EndDate = Dateadd(day,1,@EndDate); 	 	select  		u.UrunId,         		u.Barkot, 	    		u.Adi, 	    		ug.Isim , 	    		case Birim when 1 then 'Adet' when 2 then 'KG' else 'Metre' end as Birim, 	    		case Birim when 1 then StokAdedi * 1.00 else StokAdedi / 1000.00 end as Bakiye, 	    		case Birim when 1 then SatisFiyati * StokAdedi * 1.00 else SatisFiyati * StokAdedi / 1000.00 end as BakiyeDeger, 	    		isnull(hd.Adet,0) as DevirMiktar, 	    		isnull(hd.Tutar,0) as DevirTutar, 	    		isnull(ha.Adet,0) as AlimMiktar, 	    		isnull(ha.Tutar,0) as AlimTutar, 	    		isnull(hs.Adet,0) as SatisMiktar, 	    		isnull(hs.Tutar,0) as SatisTutar, 	    		isnull(hs.Kar,0) as Kar  	from Urun u  		inner join UrunGrup ug on ug.Id = u.GrupId  		left join ( 	 			select h.Barkot, 	        			sum(case h.Birim when 1 then h.Adet * 1.00 else h.Adet /1000.00 end) as Adet, 			sum(case h.Birim when 1 then h.Adet * h.SatisFiyati * 1.00 else h.Adet * h.SatisFiyati / 1000.00 end) as Tutar 			from Hareket h 	join HareketBaslik hb on h.HareketNo = hb.HareketNo 	 			where hb.Tarih between @StartDate and @EndDate and h.HareketTuru='DE' 	group by h.Barkot  		) hd on hd.Barkot = u.Barkot  		left join ( 	 			  select h.Barkot, 	        			  sum(case h.Birim when 1 then h.Adet * 1.00 else h.Adet /1000.00 end) as Adet, 			  sum(case h.Birim when 1 then h.Adet * h.BirimFiyat * 1.00 else h.Adet * h.BirimFiyat / 1000.00 end) as Tutar 	 			  from AlisFaturasiUrun h 	join AlisFaturasi hb on h.FaturaID = hb.ID 	 			  where hb.Tarih between @StartDate and @EndDate group by h.Barkot  		  ) ha on ha.Barkot = u.Barkot  		left join ( 	 			select h.Barkot, 	        			sum(case h.Birim when 1 then h.Adet * 1.00 else h.Adet /1000.00 end) as Adet , 			sum(case h.Birim when 1 then h.Adet * h.SatisFiyati * 1.00 else h.Adet * h.SatisFiyati / 1000.00 end) as Tutar, 			sum(case h.Birim when 1 then h.Adet * (h.SatisFiyati - (h.AlisFiyati*(1+(h.KDV/100.00)))) * 1.00 else h.Adet * (h.SatisFiyati - (h.AlisFiyati*(1+(h.KDV/100.00)))) / 1000.00 end) as Kar		 			from Hareket h 	join HareketBaslik hb on h.HareketNo = hb.HareketNo 	 			where hb.Tarih between @StartDate and @EndDate and h.HareketTuru='SA' 	group by h.Barkot  		) hs on hs.Barkot = u.Barkot where u.Aktif = 1  END
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'GunlukRapor', @level2type=N'COLUMN',@level2name=N'SigaraYuzde'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'GunlukRapor', @level2type=N'COLUMN',@level2name=N'Sigara'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'Hareket', @level2type=N'COLUMN',@level2name=N'Tarih'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'Hareket', @level2type=N'COLUMN',@level2name=N'Sigara'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'Hareket', @level2type=N'COLUMN',@level2name=N'SigaraYuzde'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'KuryeRapor', @level2type=N'COLUMN',@level2name=N'ServisSayisi'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'KuryeRapor', @level2type=N'COLUMN',@level2name=N'KuryeOdemesi'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'KuryeRapor', @level2type=N'COLUMN',@level2name=N'KuryeFark'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'UrunHareket', @level2type=N'COLUMN',@level2name=N'ISK1'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'UrunHareket', @level2type=N'COLUMN',@level2name=N'ISK2'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'UrunHareket', @level2type=N'COLUMN',@level2name=N'ISK3'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00] Begin DesignProperties =     Begin PaneConfigurations =        Begin PaneConfiguration = 0          NumPanes = 4          Configuration = "(H (1[40] 4[20] 2[20] 3) )"       End       Begin PaneConfiguration = 1          NumPanes = 3          Configuration = "(H (1 [50] 4 [25] 3))"       End       Begin PaneConfiguration = 2          NumPanes = 3          Configuration = "(H (1 [50] 2 [25] 3))"       End       Begin PaneConfiguration = 3          NumPanes = 3          Configuration = "(H (4 [30] 2 [40] 3))"       End       Begin PaneConfiguration = 4          NumPanes = 2          Configuration = "(H (1 [56] 3))"       End       Begin PaneConfiguration = 5          NumPanes = 2          Configuration = "(H (2 [66] 3))"       End       Begin PaneConfiguration = 6          NumPanes = 2          Configuration = "(H (4 [50] 3))"       End       Begin PaneConfiguration = 7          NumPanes = 1          Configuration = "(V (3))"       End       Begin PaneConfiguration = 8          NumPanes = 3          Configuration = "(H (1[56] 4[18] 2) )"       End       Begin PaneConfiguration = 9          NumPanes = 2          Configuration = "(H (1 [75] 4))"       End       Begin PaneConfiguration = 10          NumPanes = 2          Configuration = "(H (1[66] 2) )"       End       Begin PaneConfiguration = 11          NumPanes = 2          Configuration = "(H (4 [60] 2))"       End       Begin PaneConfiguration = 12          NumPanes = 1          Configuration = "(H (1) )"       End       Begin PaneConfiguration = 13          NumPanes = 1          Configuration = "(V (4))"       End       Begin PaneConfiguration = 14          NumPanes = 1          Configuration = "(V (2))"       End       ActivePaneConfig = 0    End    Begin DiagramPane =        Begin Origin =           Top = 0          Left = 0       End       Begin Tables =           Begin Table = "CariList"             Begin Extent =                 Top = 7                Left = 48                Bottom = 311                Right = 280             End             DisplayFlags = 280             TopColumn = 0          End          Begin Table = "CariGruplar"             Begin Extent =                 Top = 120                Left = 341                Bottom = 337                Right = 535             End             DisplayFlags = 280             TopColumn = 0          End          Begin Table = "CariBakiye"             Begin Extent =                 Top = 17                Left = 864                Bottom = 180                Right = 1058             End             DisplayFlags = 280             TopColumn = 1          End          Begin Table = "CariTipleri"             Begin Extent =                 Top = 191                Left = 734                Bottom = 354                Right = 928             End             DisplayFlags = 280             TopColumn = 0          End       End    End    Begin SQLPane =     End    Begin DataPane =        Begin ParameterDefaults = ""       End       Begin ColumnWidths = 39          Width = 284          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          ' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'CariListView'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane2', @value=N'Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200       End    End    Begin CriteriaPane =        Begin ColumnWidths = 11          Column = 1440          Alias = 900          Table = 1176          Output = 720          Append = 1400          NewValue = 1170          SortType = 1356          SortOrder = 1416          GroupBy = 1350          Filter = 1356          Or = 1350          Or = 1350          Or = 1350       End    End End ' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'CariListView'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPaneCount', @value=2 , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'CariListView'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00] Begin DesignProperties =     Begin PaneConfigurations =        Begin PaneConfiguration = 0          NumPanes = 4          Configuration = "(H (1[40] 4[20] 2[20] 3) )"       End       Begin PaneConfiguration = 1          NumPanes = 3          Configuration = "(H (1 [50] 4 [25] 3))"       End       Begin PaneConfiguration = 2          NumPanes = 3          Configuration = "(H (1 [50] 2 [25] 3))"       End       Begin PaneConfiguration = 3          NumPanes = 3          Configuration = "(H (4 [30] 2 [40] 3))"       End       Begin PaneConfiguration = 4          NumPanes = 2          Configuration = "(H (1 [56] 3))"       End       Begin PaneConfiguration = 5          NumPanes = 2          Configuration = "(H (2 [66] 3))"       End       Begin PaneConfiguration = 6          NumPanes = 2          Configuration = "(H (4 [50] 3))"       End       Begin PaneConfiguration = 7          NumPanes = 1          Configuration = "(V (3))"       End       Begin PaneConfiguration = 8          NumPanes = 3          Configuration = "(H (1[56] 4[18] 2) )"       End       Begin PaneConfiguration = 9          NumPanes = 2          Configuration = "(H (1 [75] 4))"       End       Begin PaneConfiguration = 10          NumPanes = 2          Configuration = "(H (1[66] 2) )"       End       Begin PaneConfiguration = 11          NumPanes = 2          Configuration = "(H (4 [60] 2))"       End       Begin PaneConfiguration = 12          NumPanes = 1          Configuration = "(H (1) )"       End       Begin PaneConfiguration = 13          NumPanes = 1          Configuration = "(V (4))"       End       Begin PaneConfiguration = 14          NumPanes = 1          Configuration = "(V (2))"       End       ActivePaneConfig = 0    End    Begin DiagramPane =        Begin Origin =           Top = 0          Left = 0       End       Begin Tables =           Begin Table = "Urun"             Begin Extent =                 Top = 8                Left = 997                Bottom = 386                Right = 1224             End             DisplayFlags = 280             TopColumn = 0          End          Begin Table = "UrunHareket"             Begin Extent =                 Top = 0                Left = 701                Bottom = 414                Right = 894             End             DisplayFlags = 280             TopColumn = 0          End          Begin Table = "CariList"             Begin Extent =                 Top = 7                Left = 48                Bottom = 317                Right = 280             End             DisplayFlags = 280             TopColumn = 0          End          Begin Table = "UrunGrup"             Begin Extent =                 Top = 17                Left = 1293                Bottom = 384                Right = 1514             End             DisplayFlags = 280             TopColumn = 0          End       End    End    Begin SQLPane =     End    Begin DataPane =        Begin ParameterDefaults = ""       End       Begin ColumnWidths = 27          Width = 284          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 120' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'view_StokGrsHareket'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane2', @value=N'0          Width = 1200       End    End    Begin CriteriaPane =        Begin ColumnWidths = 11          Column = 1440          Alias = 900          Table = 1176          Output = 720          Append = 1400          NewValue = 1170          SortType = 1356          SortOrder = 1416          GroupBy = 1350          Filter = 1356          Or = 1350          Or = 1350          Or = 1350       End    End End ' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'view_StokGrsHareket'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPaneCount', @value=2 , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'view_StokGrsHareket'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00] Begin DesignProperties =     Begin PaneConfigurations =        Begin PaneConfiguration = 0          NumPanes = 4          Configuration = "(H (1[40] 4[20] 2[20] 3) )"       End       Begin PaneConfiguration = 1          NumPanes = 3          Configuration = "(H (1 [50] 4 [25] 3))"       End       Begin PaneConfiguration = 2          NumPanes = 3          Configuration = "(H (1 [50] 2 [25] 3))"       End       Begin PaneConfiguration = 3          NumPanes = 3          Configuration = "(H (4 [30] 2 [40] 3))"       End       Begin PaneConfiguration = 4          NumPanes = 2          Configuration = "(H (1 [56] 3))"       End       Begin PaneConfiguration = 5          NumPanes = 2          Configuration = "(H (2 [66] 3))"       End       Begin PaneConfiguration = 6          NumPanes = 2          Configuration = "(H (4 [50] 3))"       End       Begin PaneConfiguration = 7          NumPanes = 1          Configuration = "(V (3))"       End       Begin PaneConfiguration = 8          NumPanes = 3          Configuration = "(H (1[56] 4[18] 2) )"       End       Begin PaneConfiguration = 9          NumPanes = 2          Configuration = "(H (1 [75] 4))"       End       Begin PaneConfiguration = 10          NumPanes = 2          Configuration = "(H (1[66] 2) )"       End       Begin PaneConfiguration = 11          NumPanes = 2          Configuration = "(H (4 [60] 2))"       End       Begin PaneConfiguration = 12          NumPanes = 1          Configuration = "(H (1) )"       End       Begin PaneConfiguration = 13          NumPanes = 1          Configuration = "(V (4))"       End       Begin PaneConfiguration = 14          NumPanes = 1          Configuration = "(V (2))"       End       ActivePaneConfig = 0    End    Begin DiagramPane =        Begin Origin =           Top = 0          Left = 0       End       Begin Tables =           Begin Table = "Urun"             Begin Extent =                 Top = 7                Left = 48                Bottom = 292                Right = 275             End             DisplayFlags = 280             TopColumn = 33          End          Begin Table = "UrunGrup"             Begin Extent =                 Top = 7                Left = 323                Bottom = 170                Right = 544             End             DisplayFlags = 280             TopColumn = 0          End       End    End    Begin SQLPane =     End    Begin DataPane =        Begin ParameterDefaults = ""       End       Begin ColumnWidths = 9          Width = 284          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200          Width = 1200       End    End    Begin CriteriaPane =        Begin ColumnWidths = 11          Column = 1440          Alias = 900          Table = 1170          Output = 720          Append = 1400          NewValue = 1170          SortType = 1350          SortOrder = 1410          GroupBy = 1350          Filter = 1350          Or = 1350          Or = 1350          Or = 1350       End    End End ' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'view_StokListesi'
+GO
+EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPaneCount', @value=1 , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'VIEW',@level1name=N'view_StokListesi'
+GO
+USE [master]
+GO
+ALTER DATABASE [MarcaPOS] SET  READ_WRITE 
+GO

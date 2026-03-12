@@ -73,10 +73,12 @@ export default function CourierPage() {
 
     // Harita merkezini belirle: İlk kuryenin konumu yoksa Türkiye geneli
     const activeCouriers = couriers.filter(c => {
-        const hasLat = typeof c.lat === 'number' || typeof c.Lat === 'number';
-        const hasLng = typeof c.lng === 'number' || typeof c.Lng === 'number';
-        return c.Status !== 'Offline' && hasLat && hasLng;
+        const hasLat = c.lat !== undefined && c.lat !== null;
+        const hasLng = c.lng !== undefined && c.lng !== null;
+        return c.Status !== 'Offline' && c.Status !== 'Idle' && hasLat && hasLng;
     });
+
+    console.log('📍 Active Couriers for Map:', activeCouriers);
 
     const mapCenter = activeCouriers.length > 0
         ? [

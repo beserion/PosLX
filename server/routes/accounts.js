@@ -115,6 +115,189 @@ router.get('/:id/ledger', async (req, res) => {
     }
 });
 
+// ── GET /api/accounts/:id/ledger/:ledgerId/details — get details for a ledger entry ──
+router.get('/:id/ledger/:ledgerId/details', async (req, res) => {
+    try {
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
+
+        const ledgerResult = await pool.request()
+            .input('id', sql.Int, req.params.ledgerId)
+            .input('accountId', sql.Int, req.params.id)
+            .query('SELECT * FROM AccountLedger WHERE ID = @id AND AccountID = @accountId');
+
+        if (ledgerResult.recordset.length === 0) return res.status(404).json({ error: 'İşlem bulunamadı' });
+        const entry = ledgerResult.recordset[0];
+
+        // ── Strategy 1: Direct Invoice link (RefType='Invoice' + RefID) ──
+        if (entry.RefType === 'Invoice' && entry.RefID) {
+            const result = await fetchInvoiceDetails(pool, entry.RefID);
+            if (result) return res.json({ ...result, isMatched: false, source: 'invoice' });
+        }
+
+        // ── Strategy 2: Find via AccountTransactions → SaleID or InvoiceID ──
+        if (entry.RefType === 'Manual' && entry.RefID) {
+            // RefID might point to AccountTransactions
+            const txResult = await pool.request()
+                .input('txId', sql.Int, entry.RefID)
+                .query('SELECT * FROM AccountTransactions WHERE ID = @txId');
+            if (txResult.recordset.length > 0) {
+                const tx = txResult.recordset[0];
+                if (tx.InvoiceID) {
+                    const result = await fetchInvoiceDetails(pool, tx.InvoiceID);
+                    if (result) return res.json({ ...result, isMatched: false, source: 'invoice' });
+                }
+                if (tx.SaleID) {
+                    const result = await fetchSaleDetails(pool, tx.SaleID);
+                    if (result) return res.json({ ...result, isMatched: false, source: 'sale' });
+                }
+            }
+        }
+
+        // ── Strategy 3: Fuzzy match — try Invoices first, then Sales ──
+        const entryDate = entry.CreatedAt;
+        const entryAmount = Math.abs(entry.Amount);
+
+        // 3a: Match against Invoices by AccountID + Date + Amount
+        const possibleInvoices = await pool.request()
+            .input('accountId', sql.Int, entry.AccountID)
+            .input('date', sql.Date, entryDate)
+            .input('amount', sql.Float, entryAmount)
+            .query(`
+                SELECT TOP 1 ID FROM Invoices 
+                WHERE AccountID = @accountId 
+                AND CAST(CreatedAt AS DATE) = CAST(@date AS DATE) 
+                AND ABS(TotalAmount - @amount) < 1.0
+                ORDER BY ABS(TotalAmount - @amount) ASC
+            `);
+
+        if (possibleInvoices.recordset.length > 0) {
+            const result = await fetchInvoiceDetails(pool, possibleInvoices.recordset[0].ID);
+            if (result && result.items && result.items.length > 0) {
+                return res.json({ ...result, isMatched: true, source: 'invoice' });
+            }
+        }
+
+        // 3b: Match against Sales by AccountID + Date + Amount
+        const possibleSales = await pool.request()
+            .input('accountId', sql.Int, entry.AccountID)
+            .input('date', sql.Date, entryDate)
+            .input('amount', sql.Float, entryAmount)
+            .query(`
+                SELECT TOP 1 ID FROM Sales 
+                WHERE AccountID = @accountId 
+                AND CAST(CreatedAt AS DATE) = CAST(@date AS DATE) 
+                AND ABS(TotalAmount - @amount) < 1.0
+                ORDER BY ABS(TotalAmount - @amount) ASC
+            `);
+
+        if (possibleSales.recordset.length > 0) {
+            const result = await fetchSaleDetails(pool, possibleSales.recordset[0].ID);
+            if (result && result.items && result.items.length > 0) {
+                return res.json({ ...result, isMatched: true, source: 'sale' });
+            }
+        }
+
+        // ── Strategy 4: Payment identification ──
+        if (entry.RefType === 'Payment') {
+            return res.json({
+                source: 'payment',
+                type: 'payment',
+                invoiceNo: 'P-' + entry.ID,
+                invoiceType: entry.Type === 'Borç' ? 'Ödeme' : 'Tahsilat',
+                totalAmount: entry.Amount,
+                description: entry.Description,
+                createdAt: entry.CreatedAt,
+                items: []
+            });
+        }
+
+        // Nothing found
+        res.json({ 
+            noDetails: true,
+            source: 'manual',
+            type: 'manual',
+            invoiceType: 'Manuel İşlem',
+            totalAmount: entry.Amount,
+            description: entry.Description,
+            createdAt: entry.CreatedAt
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Helper: Fetch invoice with items ──
+async function fetchInvoiceDetails(pool, invoiceId) {
+    const invoiceResult = await pool.request()
+        .input('id', sql.Int, invoiceId)
+        .query('SELECT * FROM Invoices WHERE ID = @id');
+    if (invoiceResult.recordset.length === 0) return null;
+    const invoice = invoiceResult.recordset[0];
+
+    const itemsResult = await pool.request()
+        .input('id', sql.Int, invoiceId)
+        .query(`
+            SELECT ii.ID, ii.InvoiceID, ii.ProductID, ii.Qty, ii.UnitPrice,
+                   ii.VatRate, ii.VatType, ii.Disc1, ii.Disc2, ii.Disc3, ii.RowTotal,
+                   p.Name AS ProductName
+            FROM InvoiceItems ii
+            JOIN Products p ON p.ID = ii.ProductID
+            WHERE ii.InvoiceID = @id
+        `);
+
+    return {
+        type: 'invoice',
+        invoiceNo: invoice.InvoiceNo,
+        invoiceType: invoice.Type,
+        counterparty: invoice.Counterparty,
+        totalAmount: invoice.TotalAmount,
+        subTotal: invoice.SubTotal,
+        totalDiscount: invoice.TotalDiscount,
+        totalVat: invoice.TotalVat,
+        description: invoice.Description,
+        createdAt: invoice.CreatedAt,
+        items: itemsResult.recordset
+    };
+}
+
+// ── Helper: Fetch sale with items ──
+async function fetchSaleDetails(pool, saleId) {
+    const saleResult = await pool.request()
+        .input('id', sql.Int, saleId)
+        .query('SELECT * FROM Sales WHERE ID = @id');
+    if (saleResult.recordset.length === 0) return null;
+    const sale = saleResult.recordset[0];
+
+    const itemsResult = await pool.request()
+        .input('id', sql.Int, saleId)
+        .query(`
+            SELECT si.ID, si.SaleID, si.ProductID, si.Qty, si.UnitPrice,
+                   0 AS VatRate, N'Hariç' AS VatType,
+                   0 AS Disc1, 0 AS Disc2, 0 AS Disc3,
+                   (si.Qty * si.UnitPrice) AS RowTotal,
+                   p.Name AS ProductName
+            FROM SaleItems si
+            JOIN Products p ON p.ID = si.ProductID
+            WHERE si.SaleID = @id
+        `);
+
+    return {
+        type: 'sale',
+        invoiceNo: 'S-' + sale.ID,
+        invoiceType: 'Satış',
+        counterparty: null,
+        totalAmount: sale.TotalAmount,
+        subTotal: sale.TotalAmount,
+        totalDiscount: sale.Discount || 0,
+        totalVat: sale.Tax || 0,
+        description: null,
+        createdAt: sale.CreatedAt,
+        paymentMethod: sale.PaymentMethod,
+        items: itemsResult.recordset
+    };
+}
+
 // ── POST /api/accounts — create a new account ──
 router.post('/', async (req, res) => {
     try {

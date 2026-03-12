@@ -73,6 +73,8 @@ router.post('/', async (req, res) => {
       PosTotal,
       Difference,
       CourierPayment,
+      FuelAmount,
+      MaintenanceAmount,
       Turnover,
       SalesAmount,
       ServiceAmount,
@@ -93,6 +95,8 @@ router.post('/', async (req, res) => {
       .input('PosTotal', sql.Float, PosTotal ?? 0)
       .input('Difference', sql.Float, Difference ?? 0)
       .input('CourierPayment', sql.Float, CourierPayment ?? 0)
+      .input('FuelAmount', sql.Float, FuelAmount ?? 0)
+      .input('MaintenanceAmount', sql.Float, MaintenanceAmount ?? 0)
       .input('Turnover', sql.Float, Turnover ?? 0)
       .input('SalesAmount', sql.Float, SalesAmount ?? 0)
       .input('ServiceAmount', sql.Float, ServiceAmount ?? 0)
@@ -102,6 +106,7 @@ router.post('/', async (req, res) => {
           CourierID, Date, CashDelivered,
           Pos1Amount, Pos2Amount, Pos3Amount, PosTotal,
           Difference, CourierPayment,
+          FuelAmount, MaintenanceAmount,
           Turnover, SalesAmount, ServiceAmount, ServiceCount
         ) 
         OUTPUT INSERTED.ID
@@ -109,6 +114,7 @@ router.post('/', async (req, res) => {
           @CourierID, @Date, @CashDelivered,
           @Pos1Amount, @Pos2Amount, @Pos3Amount, @PosTotal,
           @Difference, @CourierPayment,
+          @FuelAmount, @MaintenanceAmount,
           @Turnover, @SalesAmount, @ServiceAmount, @ServiceCount
         )
       `);
@@ -166,3 +172,50 @@ router.get('/history', async (req, res) => {
 
 export default router;
 
+// ── GET /api/courier-settlements/daily-orders ───────────────────────
+router.get('/daily-orders', async (req, res) => {
+    try {
+        const pool = await getDb();
+        if (!pool) return res.status(503).json({ error: 'Database not available' });
+
+        const courierId = Number(req.query.courierId || 0);
+        const date = req.query.date || new Date().toISOString().slice(0, 10);
+
+        if (!courierId) {
+            return res.status(400).json({ error: 'courierId is required' });
+        }
+
+        const salesResult = await pool.request()
+            .input('date', sql.NVarChar, date)
+            .input('courierId', sql.Int, courierId)
+            .query(`
+                SELECT 
+                    s.ID as SaleID, s.TotalAmount, s.PaymentMethod, s.CreatedAt, s.CourierID,
+                    a.Name as CustomerName, a.Address, a.Phone
+                FROM Sales s
+                LEFT JOIN Accounts a ON s.AccountID = a.ID
+                WHERE s.CourierID = @courierId 
+                  AND CAST(s.CreatedAt AS DATE) = CAST(@date AS DATE)
+                ORDER BY s.CreatedAt DESC
+            `);
+
+        const sales = salesResult.recordset;
+
+        // Fetch items for each sale
+        for (const sale of sales) {
+            const itemsResult = await pool.request()
+                .input('SaleID', sql.Int, sale.SaleID)
+                .query(`
+                    SELECT si.Qty, si.UnitPrice, p.Name
+                    FROM SaleItems si
+                    JOIN Products p ON si.ProductID = p.ID
+                    WHERE si.SaleID = @SaleID
+                `);
+            sale.items = itemsResult.recordset;
+        }
+
+        res.json(sales);
+    } catch (err) {
+            res.status(500).json({ error: err.message });
+    }
+});

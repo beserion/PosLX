@@ -1,0 +1,24 @@
+directories:
+  output: dist_app
+  buildResources: build
+appId: com.poslx.app
+productName: PosLX
+asar: false
+files:
+  - filter:
+      - '**/*'
+      - '!dist_app{,/**/*}'
+      - '!{.env,.gitignore}'
+      - '!*.log'
+      - '!*.txt'
+      - '!check_db.mjs'
+      - '!clear_db.mjs'
+      - '!db_test_fk.js'
+      - '!seed_data.mjs'
+      - '!test-*.js'
+      - '!test_api.mjs'
+      - node_modules/**/*
+      - public/**/*
+win:
+  target: nsis
+electronVersion: 34.5.8

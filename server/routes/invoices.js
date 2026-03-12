@@ -4,7 +4,7 @@ import sql from 'mssql';
 
 const router = Router();
 
-// ── GET /api/invoices — list all invoices ──
+// ── GET /api/invoices — paginated invoice list ──
 router.get('/', async (req, res) => {
     try {
         const pool = await getDb();
@@ -15,19 +15,38 @@ router.get('/', async (req, res) => {
             return res.status(503).json({ error: 'Database not available' });
         }
 
-        const result = await pool.request().query(`
-            SELECT i.*, ii.ItemsSummary
-            FROM Invoices i
-            LEFT JOIN (
-                SELECT ii.InvoiceID, STRING_AGG(CAST(p.Name + ' x' + CAST(ii.Qty AS NVARCHAR(MAX)) AS NVARCHAR(MAX)), ', ') AS ItemsSummary
-                FROM InvoiceItems ii
-                JOIN Products p ON p.ID = ii.ProductID
-                GROUP BY ii.InvoiceID
-            ) ii ON ii.InvoiceID = i.ID
-            ORDER BY i.CreatedAt DESC
+        const page     = Math.max(1, parseInt(req.query.page)     || 1);
+        const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 50));
+        const search   = (req.query.search || '').trim();
+        const type     = (req.query.type   || '').trim();
+        const offset   = (page - 1) * pageSize;
+
+        const request = pool.request()
+            .input('search',   sql.NVarChar, search ? `%${search}%` : null)
+            .input('type',     sql.NVarChar, type   || null)
+            .input('pageSize', sql.Int, pageSize)
+            .input('offset',   sql.Int, offset);
+
+        const whereClause = `
+            WHERE (@search IS NULL OR InvoiceNo LIKE @search OR Counterparty LIKE @search)
+              AND (@type   IS NULL OR Type = @type)
+        `;
+
+        const countResult = await request.query(
+            `SELECT COUNT(*) AS Total FROM Invoices ${whereClause}`
+        );
+        const total = countResult.recordset[0].Total;
+
+        const dataResult = await request.query(`
+            SELECT ID, InvoiceNo, Type, Counterparty, TotalAmount, SubTotal, TotalDiscount,
+                   TotalVat, AccountID, IsOpen, PaymentDays, WaybillNo, CreatedAt
+            FROM Invoices
+            ${whereClause}
+            ORDER BY CreatedAt DESC
+            OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
         `);
 
-        res.json(result.recordset);
+        res.json({ data: dataResult.recordset, total, page, pageSize });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

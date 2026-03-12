@@ -14,6 +14,7 @@ import TransactionsPage from './pages/TransactionsPage';
 import InvoicesPage from './pages/InvoicesPage';
 import AccountsPage from './pages/AccountsPage';
 import AccountDetailPage from './pages/AccountDetailPage';
+import TransactionDetailPage from './pages/TransactionDetailPage';
 import InvoiceDetailPage from './pages/InvoiceDetailPage';
 import LowStockPage from './pages/LowStockPage';
 import OrdersPage from './pages/OrdersPage';
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="/invoices/:id" element={<ManagerRoute><InvoiceDetailPage /></ManagerRoute>} />
               <Route path="/accounts" element={<ManagerRoute><AccountsPage /></ManagerRoute>} />
               <Route path="/accounts/:id" element={<ManagerRoute><AccountDetailPage /></ManagerRoute>} />
+              <Route path="/accounts/:accountId/ledger/:ledgerId" element={<ManagerRoute><TransactionDetailPage /></ManagerRoute>} />
               <Route path="/low-stock" element={<ManagerRoute><LowStockPage /></ManagerRoute>} />
               <Route path="/stock-movements" element={<ManagerRoute><StockMovementsPage /></ManagerRoute>} />
               <Route path="/courier-settlement" element={<ManagerRoute><CourierSettlementPage /></ManagerRoute>} />

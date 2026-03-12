@@ -217,15 +217,36 @@ router.get('/summary', async (req, res) => {
             }
             return res.status(503).json({ error: 'Database not available' });
         }
-        const result = await pool.request().query(`
+        const { preset, start, end } = req.query;
+        let whereClause = 'WHERE 1=1';
+        const request = pool.request();
+
+        if (preset) {
+            if (preset === 'today') {
+                whereClause = 'WHERE CAST(s.CreatedAt AS DATE) = CAST(GETDATE() AS DATE)';
+            } else if (preset === 'week') {
+                whereClause = 'WHERE s.CreatedAt >= DATEADD(day, -7, GETDATE())';
+            } else if (preset === 'month') {
+                whereClause = 'WHERE s.CreatedAt >= DATEADD(month, -1, GETDATE())';
+            } else if (preset === 'quarter') {
+                whereClause = 'WHERE s.CreatedAt >= DATEADD(month, -3, GETDATE())';
+            }
+        } else if (start && end) {
+            request.input('start', sql.NVarChar, start);
+            request.input('end', sql.NVarChar, end);
+            whereClause = 'WHERE CAST(s.CreatedAt AS DATE) BETWEEN CAST(@start AS DATE) AND CAST(@end AS DATE)';
+        }
+
+        const result = await request.query(`
             SELECT
                 COUNT(DISTINCT s.ID) AS TotalSales,
-                    COALESCE(SUM(s.TotalAmount), 0) AS TotalRevenue,
-                    COALESCE(SUM(s.TotalAmount) - SUM(si.Qty * p.CostPrice), 0) AS NetProfit
+                COALESCE(SUM(s.TotalAmount), 0) AS TotalRevenue,
+                COALESCE(SUM(s.TotalAmount) - SUM(si.Qty * p.CostPrice), 0) AS NetProfit
             FROM Sales s
             JOIN SaleItems si ON si.SaleID = s.ID
             JOIN Products p ON p.ID = si.ProductID
-                    `);
+            ${whereClause}
+        `);
         res.json(result.recordset[0] || { TotalSales: 0, TotalRevenue: 0, NetProfit: 0 });
     } catch (err) {
         res.status(500).json({ error: err.message });

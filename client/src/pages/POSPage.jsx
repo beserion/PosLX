@@ -46,7 +46,7 @@ export default function POSPage() {
 
             {/* Right — Checkout (Desktop) */}
             {!isMobile && (
-                <div className="w-[380px] shrink-0">
+                <div className="w-[460px] shrink-0">
                     <CheckoutList />
                 </div>
             )}

@@ -7,8 +7,34 @@
         "start": "node index.js",
         "dev": "node --watch index.js",
         "dev:electron": "electron .",
-        "prebuild:exe": "shx rm -rf public && shx cp -r ../client/dist public",
+        "prebuild:exe": "npm --prefix ../client run build && shx rm -rf public && shx cp -r ../client/dist public",
         "build:exe": "electron-builder --win"
+    },
+    "build": {
+        "appId": "com.poslx.app",
+        "productName": "PosLX",
+        "asar": false,
+        "directories": {
+            "output": "dist_app"
+        },
+        "files": [
+            "**/*",
+            "!dist_app{,/**/*}",
+            "!{.env,.gitignore}",
+            "!*.log",
+            "!*.txt",
+            "!check_db.mjs",
+            "!clear_db.mjs",
+            "!db_test_fk.js",
+            "!seed_data.mjs",
+            "!test-*.js",
+            "!test_api.mjs",
+            "node_modules/**/*",
+            "public/**/*"
+        ],
+        "win": {
+            "target": "nsis"
+        }
     },
     "dependencies": {
         "cors": "^2.8.5",

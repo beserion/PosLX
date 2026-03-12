@@ -41,7 +41,7 @@ export default function StockAlert() {
                 ) : lowStockItems.length === 0 ? (
                     <div className="text-center py-4 text-xs text-text-muted">Eksilen ürün yok. Tüm stoklar güvende!</div>
                 ) : (
-                    lowStockItems.map((item) => (
+                    lowStockItems.slice(0, 5).map((item) => (
                         <div key={item.ID}
                             className="flex items-center gap-3 p-3 rounded-xl transition-colors"
                             style={{ background: 'rgba(255,255,255,0.02)' }}>

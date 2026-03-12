@@ -1,0 +1,11 @@
+{
+    "DB_SERVER": "localhost\\SQLEXPRESS",
+    "DB_USER": "sa",
+    "DB_PASS": "123",
+    "DB_NAME": "poslx",
+    "CLOUD_DB_SERVER": "dukkan-adi.database.windows.net",
+    "CLOUD_DB_USER": "sa",
+    "CLOUD_DB_PASS": "123",
+    "CLOUD_DB_NAME": "poslx_cloud",
+    "CLOUD_DB_ENCRYPT": "true"
+}

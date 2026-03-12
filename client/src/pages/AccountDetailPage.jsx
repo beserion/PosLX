@@ -27,6 +27,7 @@ export default function AccountDetailPage() {
     const { currentAccount, ledger, fetchAccount, fetchLedger, recordPayment } = useAccountStore();
 
     const [showPayment, setShowPayment] = useState(false);
+    const [selectedLedgerEntry, setSelectedLedgerEntry] = useState(null);
 
     useEffect(() => {
         fetchAccount(id);
@@ -127,8 +128,10 @@ export default function AccountDetailPage() {
                             </thead>
                             <tbody>
                                 {ledger.map(entry => (
-                                    <tr key={entry.ID} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                                        <td className="py-3 pr-3 text-text-muted whitespace-nowrap">{fmtDate(entry.CreatedAt)}</td>
+                                    <tr key={entry.ID} onClick={() => navigate(`/accounts/${id}/ledger/${entry.ID}`)} className="border-b border-white/5 hover:bg-cyan-500/5 transition-all cursor-pointer group">
+                                        <td className="p-3 pl-4 border-r border-white/5 text-text-muted">
+                                            {entry.CreatedAt ? new Date(entry.CreatedAt.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </td>
                                         <td className="py-3 pr-3 text-text-muted whitespace-nowrap">
                                             <div className="flex items-center gap-1"><Clock size={12} />{fmtTime(entry.CreatedAt)}</div>
                                         </td>
@@ -174,6 +177,7 @@ export default function AccountDetailPage() {
             </div>
 
             {showPayment && <PaymentModal accountId={id} accountName={acc.Name} accountType={acc.Type} onClose={() => setShowPayment(false)} />}
+            {selectedLedgerEntry && <LedgerDetailModal entry={selectedLedgerEntry} accountId={id} onClose={() => setSelectedLedgerEntry(null)} />}
         </>
     );
 }
@@ -268,6 +272,182 @@ function PaymentModal({ accountId, accountName, accountType, onClose }) {
                     {submitting ? 'Kaydediliyor…' : `${actionLabel} Kaydet`}
                 </button>
             </form>
+        </div>
+    );
+}
+
+function LedgerDetailModal({ entry, accountId, onClose }) {
+    const [details, setDetails] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const toast = useToast();
+
+    useEffect(() => {
+        setLoading(true);
+        import('../lib/api').then(({ default: api }) => {
+            api.get(`/accounts/${accountId}/ledger/${entry.ID}/details`)
+                .then(res => setDetails(res.data))
+                .catch(err => toast.error(err.response?.data?.error || 'Detaylar alınamadı'))
+                .finally(() => setLoading(false));
+        });
+    }, [entry, accountId]);
+
+    const hasItems = details && !details.noDetails && details.items && details.items.length > 0;
+    const hasDiscounts = hasItems && details.items.some(i => (i.Disc1 || 0) > 0 || (i.Disc2 || 0) > 0 || (i.Disc3 || 0) > 0);
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+            <div onClick={(e) => e.stopPropagation()}
+                className="glass-card p-6 rounded-2xl w-full max-w-3xl flex flex-col gap-4 max-h-[90vh]">
+                
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                    <div>
+                        <h2 className="text-lg font-bold text-text-primary">İşlem Detayı</h2>
+                        <div className="text-xs text-text-muted flex items-center gap-2 mt-1">
+                            <span>{fmtDate(entry.CreatedAt)} {fmtTime(entry.CreatedAt)}</span>
+                            <span>•</span>
+                            <span className={entry.Type === 'Borç' ? 'text-red-400' : 'text-emerald-400'}>{entry.Type}</span>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors cursor-pointer bg-white/5 hover:bg-white/10 p-2 rounded-xl">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <div className="overflow-y-auto pr-2 flex flex-col gap-4">
+                    {/* Ledger entry info */}
+                    <div className="glass-card-static p-4 rounded-xl flex flex-col gap-2">
+                        <div className="flex justify-between items-start">
+                            <div className="text-sm text-text-muted font-medium w-24">Açıklama</div>
+                            <div className="text-sm text-text-primary flex-1 text-right break-words">{entry.Description || '—'}</div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="text-sm text-text-muted font-medium w-24">Tutar</div>
+                            <div className={`text-sm font-bold ${entry.Type === 'Borç' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                {fmtMoney(entry.Amount)}
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="text-sm text-text-muted font-medium w-24">Tür</div>
+                            <div className="text-sm text-text-primary">
+                                {entry.RefType || 'Manuel İşlem'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Invoice/Sale summary */}
+                    {hasItems && details.invoiceNo && (
+                        <div className="glass-card-static p-4 rounded-xl">
+                            <h3 className="text-sm font-bold text-text-primary mb-2">
+                                {details.source === 'sale' ? 'Satış Bilgileri' : 'Fatura Bilgileri'}
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-text-muted">Evrak No:</span>
+                                    <span className="text-text-primary font-medium">{details.invoiceNo || '—'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-text-muted">Tip:</span>
+                                    <span className="text-text-primary font-medium">{details.invoiceType || '—'}</span>
+                                </div>
+                                {details.counterparty && (
+                                    <div className="flex justify-between">
+                                        <span className="text-text-muted">Cari:</span>
+                                        <span className="text-text-primary font-medium">{details.counterparty}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between">
+                                    <span className="text-text-muted">Alt Toplam:</span>
+                                    <span className="text-text-primary font-medium">{fmtMoney(details.subTotal)}</span>
+                                </div>
+                                {(details.totalDiscount || 0) > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-text-muted">İskonto:</span>
+                                        <span className="text-orange-400 font-medium">-{fmtMoney(details.totalDiscount)}</span>
+                                    </div>
+                                )}
+                                {(details.totalVat || 0) > 0 && (
+                                    <div className="flex justify-between">
+                                        <span className="text-text-muted">KDV:</span>
+                                        <span className="text-text-primary font-medium">{fmtMoney(details.totalVat)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between">
+                                    <span className="text-text-muted font-semibold">G.Toplam:</span>
+                                    <span className="text-cyan-accent font-bold">{fmtMoney(details.totalAmount)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Items table */}
+                    {(loading || hasItems) && (
+                        <div className="flex flex-col gap-2">
+                            <h3 className="text-sm font-bold text-text-primary">
+                                Kalemler ({hasItems ? details.items.length : '…'})
+                            </h3>
+                            {loading ? (
+                                <div className="text-center text-text-muted py-6">Yükleniyor…</div>
+                            ) : hasItems ? (
+                                <div className="glass-card-static rounded-xl overflow-hidden">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-white/5">
+                                            <tr className="text-left text-text-muted">
+                                                <th className="p-3 font-medium">Ürün</th>
+                                                <th className="p-3 font-medium text-right">Miktar</th>
+                                                <th className="p-3 font-medium text-right">B.Fiyat</th>
+                                                {hasDiscounts && <th className="p-3 font-medium text-right">İsk.</th>}
+                                                <th className="p-3 font-medium text-right">KDV</th>
+                                                <th className="p-3 font-medium text-right">Toplam</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {details.items.map((item, idx) => {
+                                                const disc = [item.Disc1, item.Disc2, item.Disc3].filter(d => d && d > 0);
+                                                const discStr = disc.length > 0 ? disc.map(d => `%${d}`).join('+') : '';
+                                                const rowTotal = item.RowTotal || (item.Qty * item.UnitPrice);
+                                                return (
+                                                    <tr key={idx} className="hover:bg-white/[0.02]">
+                                                        <td className="p-3 text-text-primary">{item.ProductName}</td>
+                                                        <td className="p-3 text-right">{item.Qty}</td>
+                                                        <td className="p-3 text-right">{fmtMoney(item.UnitPrice)}</td>
+                                                        {hasDiscounts && (
+                                                            <td className="p-3 text-right text-orange-400">
+                                                                {discStr || '—'}
+                                                            </td>
+                                                        )}
+                                                        <td className="p-3 text-right text-text-muted">
+                                                            {item.VatRate ? `%${item.VatRate}` : '—'}
+                                                        </td>
+                                                        <td className="p-3 text-right font-medium text-cyan-accent">
+                                                            {fmtMoney(rowTotal)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center text-text-muted py-6 glass-card-static rounded-xl">İçerik detayı bulunamadı</div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* No details found */}
+                    {!loading && details && details.noDetails && (
+                        <div className="text-center text-text-muted py-6 glass-card-static rounded-xl">
+                            Bu işleme ait detaylı kalem bilgisi bulunamadı.
+                        </div>
+                    )}
+                </div>
+
+                <div className="pt-2 border-t border-white/10">
+                    <button type="button" onClick={onClose}
+                        className="btn-primary w-full py-2.5 rounded-xl text-sm font-bold">
+                        Kapat
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

@@ -211,7 +211,16 @@ export default function TransactionsPage() {
                                     const Icon = cfg.icon;
                                     const isNegative = tx.Amount < 0;
                                     return (
-                                        <tr key={tx.ID} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                        <tr key={tx.ID} onClick={() => {
+                                        if (tx.AccountID) {
+                                            // Find ledger entry ID if possible, or just use tx.ID if we update backend to handle tx.ID too
+                                            // Actually, AccountTransactions usually have RefID to ledger.
+                                            // Let's assume we want to view it.
+                                            // For simplicity, let's navigate to the accounts/ledger route if AccountID exists
+                                            // We might need a more generic route like /transactions/:id
+                                            navigate(`/accounts/${tx.AccountID}/ledger/${tx.ID}`); 
+                                        }
+                                    }} className="border-b border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer group">
                                             {isRange && (
                                                 <td className="py-3 pr-3 text-text-muted whitespace-nowrap">
                                                     {fmtDate(tx.CreatedAt)}

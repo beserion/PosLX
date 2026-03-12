@@ -24,15 +24,33 @@ export default function InvoicesPage() {
     const [view, setView] = useState('list'); // 'list' | 'form'
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 50;
 
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('Tümü');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    const fetchInvoices = async () => {
+    // Debounce search input 400ms
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    const fetchInvoices = async (pg = 1, append = false) => {
         setLoading(true);
         try {
-            const { data } = await api.get('/invoices');
-            setInvoices(data);
+            const params = new URLSearchParams({
+                page: pg,
+                pageSize: PAGE_SIZE,
+                ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                ...(filterType !== 'Tümü' ? { type: filterType } : {}),
+            });
+            const { data } = await api.get(`/invoices?${params}`);
+            setTotal(data.total);
+            setPage(pg);
+            setInvoices(prev => append ? [...prev, ...data.data] : data.data);
         } catch (err) {
             console.error('Failed to fetch invoices:', err.message);
         } finally {
@@ -42,11 +60,13 @@ export default function InvoicesPage() {
 
     const location = useLocation();
 
+    // Reset and reload whenever search/filter changes
     useEffect(() => {
-        fetchInvoices();
-        if (location.state?.openNewForm) {
-            setView('form');
-        }
+        fetchInvoices(1, false);
+    }, [debouncedSearch, filterType]);
+
+    useEffect(() => {
+        if (location.state?.openNewForm) setView('form');
     }, [location.state]);
 
     const handleDelete = async (id) => {
@@ -54,7 +74,7 @@ export default function InvoicesPage() {
         const reason = prompt('İptal/İade sebebini yazın (opsiyonel):') || '';
         try {
             await api.delete(`/invoices/${id}`, { data: { reason } });
-            fetchInvoices();
+            fetchInvoices(1, false);
         } catch (err) {
             toast.error(err.response?.data?.error || err.message);
         }
@@ -66,21 +86,16 @@ export default function InvoicesPage() {
                 initialItems={location.state?.initialItems}
                 onClose={() => {
                     setView('list');
-                    fetchInvoices();
-                    navigate(location.pathname, { replace: true, state: {} }); // Clear state
+                    fetchInvoices(1, false);
+                    navigate(location.pathname, { replace: true, state: {} });
                 }}
             />
         );
     }
 
-    const filteredInvoices = invoices.filter(inv => {
-        const matchesSearch = (inv.InvoiceNo?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-            (inv.Counterparty?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-        const matchesType = filterType === 'Tümü' || inv.Type === filterType;
-        return matchesSearch && matchesType;
-    });
-
     // ── LIST VIEW ──
+    const hasMore = invoices.length < total;
+
     return (
         <div className="flex flex-col gap-4 h-[calc(100vh-2rem)] w-full">
             {/* Header Ribbon */}
@@ -90,7 +105,7 @@ export default function InvoicesPage() {
                         <FileText className="text-cyan-accent" />
                         Faturalar / İrsaliyeler
                     </h1>
-                    <span className="badge badge-cyan">{filteredInvoices.length} Kayıt</span>
+                    <span className="badge badge-cyan">{total.toLocaleString('tr-TR')} Kayıt</span>
                 </div>
 
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-4 glass-card p-3 rounded-2xl border border-white/5">
@@ -123,9 +138,8 @@ export default function InvoicesPage() {
                                 { header: 'Taşıyıcı', key: 'Carrier' },
                                 { header: 'Araç Plaka', key: 'PlateNo' },
                                 { header: 'Dahili Not', key: 'InternalNote' },
-                                { header: 'İçerik', key: 'ItemsSummary' },
                             ];
-                            printReport(filteredInvoices, columns, { title: 'Fatura & İrsaliye Listesi' });
+                            printReport(invoices, columns, { title: 'Fatura & İrsaliye Listesi' });
                         }}
                         className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer shrink-0"
                     >
@@ -133,7 +147,7 @@ export default function InvoicesPage() {
                     </button>
                     <button
                         onClick={() => exportToExcel(
-                            filteredInvoices,
+                            invoices,
                             [
                                 { header: 'Tarih', key: 'CreatedAt', formatter: (v) => v ? new Date(v.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' },
                                 { header: 'Belge No', key: 'InvoiceNo', formatter: (v, row) => v || `#${row.ID}` },
@@ -155,7 +169,6 @@ export default function InvoicesPage() {
                                 { header: 'Taşıyıcı', key: 'Carrier' },
                                 { header: 'Araç Plaka', key: 'PlateNo' },
                                 { header: 'Dahili Not', key: 'InternalNote' },
-                                { header: 'İçerik', key: 'ItemsSummary' },
                             ],
                             'Faturalar',
                             { title: 'Fatura & İrsaliye Listesi' }
@@ -194,10 +207,10 @@ export default function InvoicesPage() {
             {/* Invoices Table */}
             <div className="glass-card rounded-2xl flex-1 flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-auto bg-bg-dark/20 relative custom-scrollbar">
-                    {loading ? (
+                    {loading && invoices.length === 0 ? (
                         <div className="text-center text-text-muted py-10">Yükleniyor…</div>
-                    ) : filteredInvoices.length === 0 ? (
-                        <div className="text-center text-text-muted py-10">Henüz kayıt yok</div>
+                    ) : invoices.length === 0 ? (
+                        <div className="text-center text-text-muted py-10">Kayıt bulunamadı</div>
                     ) : (
                         <table className="w-full text-sm text-left whitespace-nowrap min-w-max">
                             <thead className="sticky top-0 bg-[#161b26] text-text-muted shadow-sm shadow-[#0a0e1a]/50 z-10 select-none">
@@ -206,13 +219,13 @@ export default function InvoicesPage() {
                                     <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-32">Belge No</th>
                                     <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-32">Tür</th>
                                     <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 w-48">Cari</th>
-                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5">İçerik</th>
+                                    <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 text-right w-28">KDV</th>
                                     <th className="p-3 font-semibold text-xs tracking-wider border-b border-r border-white/5 text-right w-32">Genel Toplam</th>
                                     <th className="p-3 font-semibold text-xs tracking-wider border-b border-white/5 w-12 text-center">İşlem</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredInvoices.map((inv) => (
+                                {invoices.map((inv) => (
                                     <tr key={inv.ID} onClick={() => navigate(`/invoices/${inv.ID}`)} className="border-b border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer group">
                                         <td className="p-3 pl-4 border-r border-white/5 text-text-muted whitespace-nowrap">
                                             {inv.CreatedAt ? new Date(inv.CreatedAt.replace(' ', 'T')).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
@@ -232,8 +245,8 @@ export default function InvoicesPage() {
                                                 <span className="truncate max-w-[150px]">{inv.Counterparty}</span>
                                             </div>
                                         </td>
-                                        <td className="p-3 border-r border-white/5 text-text-muted text-xs">
-                                            <span className="truncate inline-block max-w-[200px] xl:max-w-[400px]">{inv.ItemsSummary || '—'}</span>
+                                        <td className="p-3 border-r border-white/5 text-right text-text-muted">
+                                            {fmtMoney(inv.TotalVat)}
                                         </td>
                                         <td className="p-3 border-r border-white/5 text-right font-bold text-red-400 whitespace-nowrap bg-red-500/[0.02]">
                                             {fmtMoney(inv.TotalAmount)}
@@ -249,6 +262,18 @@ export default function InvoicesPage() {
                         </table>
                     )}
                 </div>
+                {/* Load More footer */}
+                {hasMore && (
+                    <div className="shrink-0 border-t border-white/5 p-3 text-center">
+                        <button
+                            disabled={loading}
+                            onClick={() => fetchInvoices(page + 1, true)}
+                            className="text-sm text-cyan-accent hover:underline disabled:opacity-50 cursor-pointer"
+                        >
+                            {loading ? 'Yükleniyor…' : `Daha fazla göster (${total - invoices.length} kayıt kaldı)`}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
